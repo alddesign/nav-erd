@@ -38,9 +38,7 @@ function parseFile(lines)
 		setTimeout(function()
 		{
 			loadNavObjects(lines, false); //Load Calls (Relations)
-			console.log("load-ok");
 			drawErd(); //!!
-			console.log("draw-ok");
 		}, 100);
 	}, 100); 
 

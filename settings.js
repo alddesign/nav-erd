@@ -4,9 +4,9 @@
  * @fileoverview Customize this file to adjust the look and feel
  * @author Alexander Döpper
  * @license MIT
- * @version 1.0.0-beta.1
+ * @version v1.0.0-beta.1
  */
-var version = "1.0.0-beta.1";
+var version = "v1.0.0-beta.1";
 // ######################################################################################################################################################
 
 // ### SETTING ##################################################
