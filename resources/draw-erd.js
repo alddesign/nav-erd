@@ -86,7 +86,7 @@ function createRelations()
 function createNavObjectEntities()
 {
 	var navObjectsPerRow = 0;
-	var len = Object.keys(navObjects).length;
+	var len = totalNavObjectsToRender; //Object.keys(navObjects).length;
 	for(navObjectsPerRow = 0; (navObjectsPerRow*navObjectsPerRow) < len; navObjectsPerRow++)
 	{ /* ... */ }
 
@@ -99,54 +99,53 @@ function createNavObjectEntities()
 	var y = navObjectEntityYOffset;
 	var maxY = 0;
 
-	if(!navObjectEntitySortAsc)
+	var uid;
+	for(uid of navObjectUidsSorted)
 	{
-		navObjectsSorted = navObjectsSorted.reverse();
+		var navObject = navObjects[uid];
+		if(navObject.render)
+		{
+			var width = navObjectEntityWidth;
+			var height = navObjectEntityHeightOffset +  (navObject.totalFunctionsToRender * (navFunctionEntityHeight + navFunctionEntityMaring));
+			var navEntity = createNavObjectEntity(navObject, x, y, width, height);
+			
+			//Positioning:
+			c += 1;
+			x += navEntity.attributes.size.width + navObjectEntityMarginX;
+
+			if(navEntity.attributes.size.height > maxY)
+			{
+				maxY = navEntity.attributes.size.height;
+			}
+
+			if(c == navObjectsPerRow)
+			{
+				y += maxY + navObjectEntityMarginY;
+				totalY += maxY + navObjectEntityMarginY;
+				if(x > maxX)
+				{
+					maxX = x;
+				}
+				maxY = 0;
+				c = 0;
+				x = Math.round(navObjectEntityMarginX/2);
+			}
+
+			//Mapping
+			if(navEntity !== null)
+			{
+				navEnityMapping[navObject.uid] = {
+					type : "table",
+					entity : navEntity,
+				};
+			}
+			
+			navEntities.push(navEntity);
+			createNavFunctionEntities(navObject, navEntity);
+		}
 	}
 
-	var c1;
-	for(c1 in navObjectsSorted)
-	{
-		var navObject = navObjects[navObjectsSorted[c1][0]];
-		var width = navObjectEntityWidth;
-		var height = navObjectEntityHeightOffset +  (getNoOfFunctions(navObject, showLocalFunctions, true) * (navFunctionEntityHeight + navFunctionEntityMaring));
-		var navEntity = createNavObjectEntity(navObject, x, y, width, height);
-		
-		//Positioning:
-		c += 1;
-		x += navEntity.attributes.size.width + navObjectEntityMarginX;
-
-		if(navEntity.attributes.size.height > maxY)
-		{
-			maxY = navEntity.attributes.size.height;
-		}
-
-		if(c == navObjectsPerRow)
-		{
-			y += maxY + navObjectEntityMarginY;
-			totalY += maxY + navObjectEntityMarginY;
-			if(x > maxX)
-			{
-				maxX = x;
-			}
-			maxY = 0;
-			c = 0;
-			x = Math.round(navObjectEntityMarginX/2);
-		}
-
-		//Mapping
-		if(navEntity !== null)
-		{
-			navEnityMapping[navObject.uid] = {
-				type : "table",
-				entity : navEntity,
-			};
-		}
-		
-		navEntities.push(navEntity);
-		createNavFunctionEntities(navObject, navEntity);
-	}	
-	totalY += maxY + Math.round(navFunctionEntityHeight / 2);
+	totalY += maxY + navObjectEntityMarginY;
 }
 
 function createNavObjectEntity(navObject, x, y, width, height)
@@ -198,20 +197,23 @@ function createNavFunctionEntities(navObject, navObjectEntity)
 	{
 		//Functions
 		var navFunction = navObject.functions[functionName];
-		var navEntity = null;
-
-		navEntity = createNavFunctionEntity(navFunction, x, y, width, height);
-		navObjectEntity.embed(navEntity);
-		navEntities.push(navEntity);
-		y += height + navFunctionEntityMaring;
-
-		//Mapping
-		if(navEntity !== null)
+		if(navFunction.render)
 		{
-			navEnityMapping[navFunction.functionUid] = {
-				type : "function",
-				entity : navEntity,
-			};
+			var navEntity = null;
+
+			navEntity = createNavFunctionEntity(navFunction, x, y, width, height);
+			navObjectEntity.embed(navEntity);
+			navEntities.push(navEntity);
+			y += height + navFunctionEntityMaring;
+
+			//Mapping
+			if(navEntity !== null)
+			{
+				navEnityMapping[navFunction.functionUid] = {
+					type : "function",
+					entity : navEntity,
+				};
+			}
 		}
 	}
 }
@@ -300,6 +302,7 @@ function connectEntities(source, sourcePort, target, targetPort)
 //#endregion
 
 //#region Helpers
+
 function createPaper()
 {
 	return new joint.dia.Paper(

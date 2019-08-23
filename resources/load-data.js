@@ -2,8 +2,8 @@
 var navObjects = null;
 var totalNavObjects = 0;
 var totalNavObjectsIncluded = 0;
-var totalNavObjectsRendered = 0;
-var navObjectsSorted = null;
+var totalNavObjectsToRender = 0;
+var navObjectUidsSorted = null;
 
 var erdId = "ig-erd";
 var fileId = "ig-file";
@@ -38,78 +38,22 @@ function parseFile(lines)
 		setTimeout(function()
 		{
 			loadNavObjects(lines, false); //Load Calls (Relations)
+			console.log("load-ok");
 			drawErd(); //!!
+			console.log("draw-ok");
 		}, 100);
 	}, 100); 
 
 }
 
 //#region Main
-/* NAV Objects (example) :
-{
-	table50000 :
-	{
-		uid : "table50000"
-		type : "table",
-		typeShort : "t",
-		id : 50000,
-		name : "IG General Setup",
-		included : true,
-		functions : 
-		{
-			createnewsetup : 
-			{
-				name : "createnewsetup",
-				realname : "CreateNewSetup",
-				functionUid : "table50000.createnewsetup",
-				id : 1000005,
-				included : true,
-				type : 0, //0 = local, 1 = global, 2 = trigger
-				params : 
-				{
-					rec : {name : "rec", realName : "Rec", id=1000000, objectType : "table", objectId : 50001, objectUid = "table50001", temp : false},
-					...
-				}
-				vars: 
-				{
-					igtaskmgt : {name : "igtaskmgt", realName : "IGTaskMgt", id : 1000002, objectType : "codeunit", objectId : 50030, objectUid = "codeunit50030", temp : false},
-					...
-				}
-				calls : 
-				{
-					"codunit50012.checksetup" : {callUid : "codunit50012.checksetup", objectType : "codeunit", objectId : 50012, objectUid : "codeunit500012", functionName : "checksetup", amount : 1},
-				},
-				totalCalls : 0,
-				totalCallsIn : 0,
-				totalCallsOut : 0
-			},
-			OnDelete :
-			{ ... }
-		},
-		vars
-		{
-			itemrec : {name : "itemrec", realName : "ItemRec", id=1000000, objectType : "table", objectId : 27, objectUid = "table27" temp : false},
-			...
-		},
-		totalCalls : 0,
-		totalCallsIn : 0,
-		totalCallsOut : 0,		
-		totalLocalFunctions : 2,
-		totalGlobalFunctions : 5,
-		totalTriggerFunctions : 3,
-		totalLocalFunctionsWithCalls : 0,
-		totalGlobalFunctionsWithCalls : 4,
-		totalTriggerFunctionsWithCalls : 1
-	},
-	...
-}
-*/
+/* NAV Objects (example) : See nav-object.example.js*/
 function loadNavObjects(lines = [], loadObjects = true)
 {
 	if(loadObjects)
 	{
 		navObjects = {};
-		navObjectsSorted = [];
+		navObjectUidsSorted = [];
 	}
 
 	var line = "";
@@ -375,53 +319,67 @@ function prepareNavObjects()
 	{
 		//Objects
 		navObjects[uid].totalCalls = navObjects[uid].totalCallsIn + navObjects[uid].totalCallsOut;
-		for(functionUid in navObject.functions)
+		for(functionUid in navObjects[uid].functions)
 		{
 			//Funcitons
-			navObject.functions[functionUid].totalCalls = navObject.functions[functionUid].totalCallsIn + navObject.functions[functionUid].totalCallsOut;
-			if(navObject.functions[functionUid].totalCallsIn > 0 ||navObject.functions[functionUid].totalCallsOut > 0)
+			navObjects[uid].functions[functionUid].totalCalls = navObjects[uid].functions[functionUid].totalCallsIn + navObjects[uid].functions[functionUid].totalCallsOut;
+			
+			if(navObjects[uid].functions[functionUid].totalCallsIn > 0 ||navObjects[uid].functions[functionUid].totalCallsOut > 0)
 			{
-				switch(navFunction.type)
+				switch(navObjects[uid].functions[functionUid].type)
 				{
 					case 0 : navObjects[uid].totalLocalFunctionsWithCalls += 1; break;
 					case 1 : navObjects[uid].totalGlobalFunctionsWithCalls += 1; break;
 					case 2 : navObjects[uid].totalTriggerFunctionsWithCalls += 1; break;
 				}
 			}
+
+			//Do Render?
+			if(doRenderNavFunction(navObjects[uid].functions[functionUid]))
+			{
+				navObjects[uid].functions[functionUid].render = true;
+				navObjects[uid].totalFunctionsToRender += 1;
+			}
 		}
 
-		if(navObjects[uid].included)
+		//Do Render?
+		if(doRenderNavObject(navObjects[uid]))
 		{
-			if(navObjects[uid].totalCalls > 0)
-			{
-				
-			}
-			else
-			{
-
-			}
+			navObjects[uid].render = true;
+			totalNavObjectsToRender += 1;
 		}
-		else
-		{
-			if(navObjects[uid].totalCalls > 0)
-			{
-
-			}
-			else
-			{
-				
-			}
-		}
-
-		navObjects[uid].totalFunctionsRendered = calculateTotalFunctionsRendered(navObjects[uid]);
-
 	}
 
-	//Custom Sort method
-	/*navObjectsSorted.sort(function(a,b)
+	navObjectUidsSorted = Object.keys(navObjects);
+	navObjectUidsSorted.sort(function(a,b)
 	{ 
 		return(b[1] - a[1]); 
-	});*/
+	});
+}
+
+function doRenderNavObject(navObject)
+{
+	return(
+		(showObjects == "all") ||
+		(showObjects == "included" && navObject.included) ||
+		(showObjects == "with_calls" && navObject.totalCalls > 0) ||
+		(showObjects == "included_with_calls" && (navObject.totalCalls > 0 && navObject.included))
+	);
+}
+
+function doRenderNavFunction(navFunction)
+{
+	return(
+		//Local
+		(navFunction.type == 0 && showLocalFunctions == "all") ||
+		(navFunction.type == 0 && showLocalFunctions == "with_calls" && navFunction.totalCalls) ||
+		//Global
+		(navFunction.type == 1 && showGlobalFunctions == "all") ||
+		(navFunction.type == 1 && showGlobalFunctions == "with_calls" && navFunction.totalCalls) ||
+		//Trigger
+		(navFunction.type == 2 && showTriggerFunctions == "all") ||
+		(navFunction.type == 2 && showTriggerFunctions == "with_calls" && navFunction.totalCalls)
+	);
 }
 
 /**
@@ -454,21 +412,22 @@ function addOrUpdateFunction(navObject, navFunction)
 
 function createFunction(realName, id, type = 0, included = false, params = {}, vars = {}, calls = {})
 {
-	return 
-	({
+	return {
 		name : realName.toLowerCase(), 
 		realName : realName, 
 		id : id, 
 		functionUid : null, 
 		type : type, //0 = local, 1 = global, 2 = trigger 
+		render : false,
 		included : included, 
 		params : params, 
 		vars : vars, 
 		calls : calls,
+		
 		totalCalls : 0,
 		totalCallsIn : 0,
 		totalCallsOut : 0
-	});
+	};
 }
 
 function createFunctionUid(navObject, navFunction)
@@ -538,26 +497,31 @@ function createParamVar(realName, id, objectType, objectId, temp = false)
  */
 function createNavObject(type, id, name, included, functions = {}, vars = {})
 {
-	return
-	({
+	return {
 		uid : createUid(type, id), 
 		type : type, 
 		typeShort : typeToTypeShort(type), 
 		id : id, 
 		name : name, 
 		included : included, 
+		render : false,
 		functions : functions, 
 		vars : vars,
-		totalTriggerFunctions : 0,
-		totalTriggerFunctionsWithCalls : 0,
-		totalLocalFunctions : 0,
-		totalLocalFunctionsWithCalls : 0,
-		totalGlobalFunctions : 0,
-		totalGlobalFunctionsWithCalls : 0,
+		
 		totalCalls : 0,
 		totalCallsIn : 0,
-		totalCallsOut : 0
-	});
+		totalCallsOut : 0,
+		
+		totalLocalFunctions : 0,
+		totalGlobalFunctions : 0,
+		totalTriggerFunctions : 0,
+
+		totalLocalFunctionsWithCalls : 0,
+		totalGlobalFunctionsWithCalls : 0,
+		totalTriggerFunctionsWithCalls : 0,
+		
+		totalFunctionsToRender : 0
+	};
 }
 
 /**
@@ -601,7 +565,7 @@ function addOrUpdateCall(fromNavObject, fromFunction, call)
 	navObjects[fromNavObject.uid].functions[fromFunction.name].calls[call.callUid].amount += 1;
 
 	navObjects[fromNavObject.uid].totalCallsOut += 1;
-	navObjects[fromNavObject.uid].functoins[fromFunction.name].totalCallsOut += 1;
+	navObjects[fromNavObject.uid].functions[fromFunction.name].totalCallsOut += 1;
 
 	navObjects[call.objectUid].totalCallsIn += 1;
 	navObjects[call.objectUid].functions[call.functionName].totalCallsIn += 1;

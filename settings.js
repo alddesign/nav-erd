@@ -1,19 +1,28 @@
-/*
-* --- SETTING ---
-* In this section you may adjust what exactly will be rendered to the ERD and how.
-*/
+/**
+ * Microsoft Dynamics NAV Entity Relation Diagram (ERD)
+ * 
+ * @fileoverview Customize this file to adjust the look and feel
+ * @author Alexander Döpper
+ * @license MIT
+ * @version 1.0.0-beta.1
+ */
+var version = "1.0.0-beta.1";
+// ######################################################################################################################################################
+
+// ### SETTING ##################################################
+// In this section you may adjust what exactly will be rendered to the ERD and how.
+
 //Objects
-var showObjects = "all"; //Options: "all", "included", "withCalls", "includedWithCalls"
+var showObjects = "all"; //Options: "all", "included", "with_calls", "included_with_calls"
 
 //Functions
-var showLocalFunctions = "all"; //Options: "all", "withCalls"
-var showGlobalFunctions = "all"; //Options: "all", "withCalls"
-var showTriggerFunctions = "all"; //Options: "all", "withCalls"
+var showLocalFunctions = "all"; //Options: "all", "with_calls", "none"
+var showGlobalFunctions = "all"; //Options: "all", "with_calls", "none"
+var showTriggerFunctions = "all"; //Options: "all", "with_calls", "none"
 
-/*
-* --- STYLE---
-* In this section you may adjust the style of ERD.
-*/
+// ### STYLE ##################################################
+// In this section you may adjust the style of ERD.
+
 //Objects
 var navObjectFontSize =		17;
 var navObjectFontWeight = 	"bold";
@@ -29,7 +38,7 @@ var navQueryStroke = 		"#bebebe";
 var navMenuSuiteStroke =	"#bebebe";
 
 //Functions
-var navFunctionFontSize =		13;
+var navFunctionFontSize =		12;
 var navFunctionFontWeight = 	"bold";
 var navFunctionFontFamily = 	"'Courier New', Courier, monospace";
 var navFunctionFillOpacity =	0.75;
@@ -49,37 +58,53 @@ var linkLabelFontFamily 	= "'Source Sans Pro', sans-serif";
 var linkLabelStrokeFill 	= "#999";
 var linkLabelStrokeWidth 	= 13;
 
-
-
-//Do not modify the following code:
+// ### INTERNAL - DO NOT MODIFY ##################################################
 //#region Helpers
 function getNavObjectStroke(objectType)
 {
 	switch(objectType)
 	{
-		case "table" 		: return(navTableStroke); break;
-		case "page" 		: return(navPageStroke); break;
-		case "codeunit"		: return(navCodeunitStroke); break;
-		case "report" 		: return(navReportStroke); break;
-		case "xmlport" 		: return(navXmlPortStroke); break;
-		case "query" 		: return(navQueryStroke); break;
-		case "menusuite" 	: return(navMenuSuiteStroke); break;
+		case "table" 		: return(navTableStroke); 
+		case "page" 		: return(navPageStroke); 
+		case "codeunit"		: return(navCodeunitStroke); 
+		case "report" 		: return(navReportStroke); 
+		case "xmlport" 		: return(navXmlPortStroke); 
+		case "query" 		: return(navQueryStroke); 
+		case "menusuite" 	: return(navMenuSuiteStroke); 
 		default 			: return("#000");
 	}
 }
 
 function getNavFunctionStroke(type)
 {
-	return (local == 0) ? navFunctionLocalStroke: navFunctionStroke;
+	switch(type)
+	{
+		case 0 : return navFunctionLocalStroke;
+		case 1 : return navFunctionStroke;
+		case 2 : return navFunctionStroke;
+		default : return navFunctionStroke;
+	}
 }
 
 function getNavFunctionRy(type)
 {
-	return (type == 2) ? navTriggerFunctionRy : navFunctionRy;
+	switch(type)
+	{
+		case 0 : return navFunctionRy;
+		case 1 : return navFunctionRy;
+		case 2 : return navTriggerFunctionRy;
+		default : return navFunctionRy;
+	}
 }
 
 function getNavFunctionRx(type)
 {
-	return (type == 2) ? navFunctionRx : navFunctionRx;
+	switch(type)
+	{
+		case 0 : return navFunctionRx;
+		case 1 : return navFunctionRx;
+		case 2 : return navTriggerFunctionRx;
+		default : return navFunctionRx;
+	}
 }
 //#endregion
