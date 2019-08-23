@@ -9,7 +9,6 @@ var erdId = "ig-erd";
 var fileId = "ig-file";
 var loaderId = "ig-loader";
 var newLine = "\r\n";
-var dlgId = "ig-dlg";
 var callUidSeparator = "."; //String.fromCharCode(9); //TAB
 var triggers = ["OnInsert","OnModify","OnDelete","OnRename","OnValidate","OnLookup","OnInitReport","OnPreReport","OnPostReport","OnPreDataItem","OnAfterGetRecord","OnPostDataItem","OnAfterAssignField","OnAfterAssignVariable","OnAfterGetField","OnAfterGetRecord","OnAfterInitRecord","OnAfterInsertRecord","OnAfterModifyRecord","OnBeforeInsertRecord","OnBeforeModifyRecord","OnBeforePassField","OnBeforePassVariable","OnInitXMLport","OnPreXMLport","OnPostXMLport","OnPreXMLItem","OnInit","OnOpenPage","OnClosePage","OnFindRecord","OnNextRecord","OnAfterGetCurrRecord","OnAfterGetRecord","OnNewRecord","OnInsertRecord","OnModifyRecord","OnDeleteRecord","OnQueryClosePage","OnValidate (Page fields)","OnLookup (Page fields)","OnDrillDown","OnAssistEdit","OnControlAddin","OnAction","OnBeforeTestRun","OnAfterTestRun","OnBeforeOpen"];
 var isDlg = false;
@@ -39,6 +38,11 @@ function parseFile(lines)
 		{
 			loadNavObjects(lines, false); //Load Calls (Relations)
 			drawErd(); //!!
+
+			//Enable SVG download
+			$("#ig-download-svg").removeClass("disabled");
+			$("#ig-download-svg").removeClass("btn-danger");
+			$("#ig-download-svg").addClass("btn-success");
 		}, 100);
 	}, 100); 
 

@@ -5,38 +5,7 @@ body
 	border: none;
 }
 
-body, input
+#ig-erd
 {
-	font-family: "Source Sans Pro", sans-serif;
-}
-
-h2#ig-title { display: inline; }
-
-#ig-loader 
-{ 
-	background-color: #ddd; 
-	padding: 5px;
-}
-
-#ig-loader
-{
-	height: auto;
-}
-
-#ig-image,
-#ig-canvas
-{
-	display: block;
-}
-
-#ig-dlg
-{
-	position: absolute;
-	left: 40%;
-	top: 20%;
-	width: 20%;
-	height: auto;
-	text-align: center;
-	padding: 50px 0;
-	background-color: #ddd;
+	/*margin-top: 60px;*/
 }
