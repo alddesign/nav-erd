@@ -1,0 +1,473 @@
+OBJECT Table 70020 CMMS Object
+{
+  OBJECT-PROPERTIES
+  {
+    Date=16.05.18;
+    Time=16:28:30;
+    Modified=Yes;
+    Version List=CMMS;
+  }
+  PROPERTIES
+  {
+    DataCaptionFields=No.,Operational Status;
+    OnInsert=BEGIN
+               IF "CM Is Temporary" THEN
+                 EXIT;
+
+               CMGenMgt.GetNo(Rec);
+               CMAssetMgt.CreateUpdateContact(Rec);
+               CMAssetMgt.CreateUpdateDimension(Rec);
+
+               CMGenMgt.CreateLogEntry(Rec,LogEntry."CM Log Type"::Created, Rec."No.", STRSUBSTNO(Text001, Rec."No."));
+             END;
+
+    OnModify=BEGIN
+               IF "CM Is Temporary" THEN
+                 EXIT;
+
+               IF (Rec.Name <> xRec.Name) AND (Rec."No." <> '') THEN BEGIN
+                 CMAssetMgt.CreateUpdateContact(Rec);
+                 CMAssetMgt.CreateUpdateDimension(Rec);
+               END;
+             END;
+
+    OnDelete=BEGIN
+               IF "CM Is Temporary" THEN
+                 EXIT;
+
+               CMGenMgt.DeleteWoAndTaskByAsset(Rec,TRUE);
+               CMGenMgt.DeleteAssetAddData(Rec);
+             END;
+
+    CaptionML=ENU=CMMS Object;
+    LookupPageID=Page70021;
+    DrillDownPageID=Page70021;
+  }
+  FIELDS
+  {
+    { 10  ;   ;_GENERAL            ;Boolean        }
+    { 90  ;   ;Objecttype          ;Option        ;CaptionML=[ENU=Objecttype;
+                                                              DEA=Objekttyp];
+                                                   OptionString=Asset,Project }
+    { 100 ;   ;No.                 ;Code20        ;CaptionML=[ENU=No.;
+                                                              DEA=Nr.] }
+    { 200 ;   ;Name                ;Text50        ;CaptionML=[ENU=Name;
+                                                              DEA=Name] }
+    { 210 ;   ;Name 2              ;Text100       ;CaptionML=ENU=Alternative Name;
+                                                   Description=EXT }
+    { 220 ;   ;Address             ;Text50        ;CaptionML=[ENU=Address;
+                                                              DEA=Adresse];
+                                                   Description=EXT }
+    { 230 ;   ;Extended Address    ;Text50        ;CaptionML=[ENU=Extended Address 2;
+                                                              DEA=Erweiterte Adresse];
+                                                   Description=EXT }
+    { 240 ;   ;City                ;Text50        ;OnValidate=VAR
+                                                                DummyCounty@1000000000 : Text[30];
+                                                              BEGIN
+                                                              END;
+
+                                                   CaptionML=ENU=City }
+    { 250 ;   ;Post Code           ;Text20        ;TableRelation=IF (Country Code=FILTER(>'')) "Post Code".Code WHERE (Country/Region Code=FIELD(Country Code))
+                                                                 ELSE IF (Country Code=CONST()) "Post Code".Code;
+                                                   OnValidate=VAR
+                                                                DummyCounty@1000000000 : Text[30];
+                                                              BEGIN
+                                                              END;
+
+                                                   ValidateTableRelation=No;
+                                                   CaptionML=ENU=ZIP Code }
+    { 260 ;   ;Country Code        ;Code10        ;TableRelation=Country/Region;
+                                                   CaptionML=ENU=Country Code }
+    { 261 ;   ;Coordinates Latitude;Decimal       ;CaptionML=ENU=Coordinates Latitude;
+                                                   DecimalPlaces=0:6 }
+    { 262 ;   ;Coordinates Longitude;Decimal      ;CaptionML=ENU=Coordinates Longitude;
+                                                   DecimalPlaces=0:6 }
+    { 263 ;   ;Country/Region Name ;Text50        ;FieldClass=FlowField;
+                                                   CalcFormula=Lookup(Country/Region.Name WHERE (Code=FIELD(Country Code)));
+                                                   CaptionML=ENU=Country Name;
+                                                   Description=FF }
+    { 265 ;   ;Company Name        ;Text30        ;FieldClass=FlowField;
+                                                   CalcFormula=Lookup("CMMS Additional Data"."Accounting Entity" WHERE (Type=CONST(Contract),
+                                                                                                                        Key1=FIELD(No.),
+                                                                                                                        Main Contract=CONST(Yes)));
+                                                   TableRelation=Company.Name;
+                                                   CaptionML=ENU=Company Name;
+                                                   Description=FF;
+                                                   Editable=No }
+    { 266 ;   ;Contact No.         ;Code20        ;TableRelation=Contact.No. WHERE (Type=CONST(Company));
+                                                   CaptionML=ENU=Contact No.;
+                                                   Editable=No }
+    { 270 ;   ;Portfolio           ;Text50        ;CaptionML=ENU=Portfolio }
+    { 271 ;   ;Capacity DC kWp     ;Decimal       ;CaptionML=ENU=Capacity [DC kWp];
+                                                   MinValue=0;
+                                                   Description=[[kWp]]] }
+    { 279 ;   ;_ADDITONAL          ;Boolean        }
+    { 490 ;   ;Country Specific ID ;Text250       ;CaptionML=ENU=Country Specific ID;
+                                                   Description=#delete }
+    { 500 ;   ;Other General Information;Text250  ;Description=#delete? }
+    { 999 ;   ;_INTERNAL           ;Boolean        }
+    { 1600;   ;Operational Status  ;Option        ;OnValidate=BEGIN
+                                                                CMUserAccMgt.ChangeOperationalStatusAllowed(TRUE);
+                                                              END;
+
+                                                   CaptionML=[ENU=Operational Status;
+                                                              DEA=Status];
+                                                   OptionCaptionML=[DEU=Neu,Freigegeben,Inaktiv;
+                                                                    ENU=New,Released,Inactive];
+                                                   OptionString=New,Released,Inactive }
+    { 1610;   ;Commercial Status   ;Option        ;OnValidate=BEGIN
+                                                                CMGenMgt.CreateLogEntry(Rec,LogEntry."CM Log Type"::Modified, Rec.FIELDNAME("Commercial Status"), STRSUBSTNO(Text002, FORMAT(xRec."Commercial Status"), FORMAT(Rec."Commercial Status")));
+                                                              END;
+
+                                                   CaptionML=ENU=Commercial Status;
+                                                   OptionString=Not Ready For Invoicing,Ready For Invoicing }
+    { 1620;   ;Inactive at Date    ;Date          ;CaptionML=[ENU=Inactive at Date;
+                                                              DEA=Inaktiv ab Datum] }
+    { 2000;   ;Main Asset No.      ;Code20        ;CaptionML=[ENU=Main Asset No.;
+                                                              DEA=Hauptanlagennr.];
+                                                   Editable=No }
+    { 2100;   ;Asset Type          ;Option        ;CaptionML=[ENU=Asset Type;
+                                                              DEA=Asset Type];
+                                                   OptionCaptionML=[ENU=Asset,Main Asset,Sub Asset;
+                                                                    DEA=Anlage,Hauptanlage,Unteranlage];
+                                                   OptionString=Asset,Main Asset,Sub Asset;
+                                                   Editable=No }
+    { 2110;   ;Is Project of Asset ;Boolean       ;FieldClass=FlowField;
+                                                   CalcFormula=Exist("CMMS Additional Data" WHERE (Objecttype=CONST(Asset),
+                                                                                                   Type=CONST(Project),
+                                                                                                   Key1=FIELD(Asset No. Filter),
+                                                                                                   Key2=FIELD(No.)));
+                                                   CaptionML=[ENU=Is Project of Asset;
+                                                              DEA=Ist Projekt von Anlage];
+                                                   Description=FF;
+                                                   Editable=No }
+    { 2120;   ;Asset No. Filter    ;Code20        ;FieldClass=FlowFilter;
+                                                   TableRelation="CMMS Object".No. WHERE (Objecttype=CONST(Asset));
+                                                   CaptionML=[ENU=Asset No. Filter;
+                                                              DEA=Anlagennr. Filter];
+                                                   Description=FF;
+                                                   Editable=No }
+    { 2200;   ;Dimension Set ID    ;Integer       ;CaptionML=[ENU=Dimension Set ID;
+                                                              DEA=Dimensionssatz ID] }
+    { 20000;  ;New Workorders      ;Integer       ;FieldClass=FlowField;
+                                                   CalcFormula=Count(Opportunity WHERE (CM Is Workorder=CONST(Yes),
+                                                                                        CM Object No.=FIELD(No.),
+                                                                                        CM Status=CONST(New)));
+                                                   CaptionML=[ENU=New Workorders;
+                                                              DEA=Neue Arbeitsauftr„ge];
+                                                   Editable=No }
+    { 20100;  ;Open Workorders     ;Integer       ;FieldClass=FlowField;
+                                                   CalcFormula=Count(Opportunity WHERE (CM Is Workorder=CONST(Yes),
+                                                                                        CM Object No.=FIELD(No.),
+                                                                                        CM Status=CONST(Open)));
+                                                   CaptionML=[ENU=Open Workorders;
+                                                              DEA=Offene Arbeitsauftr„ge];
+                                                   Editable=No }
+    { 20200;  ;In Proc. Workorders ;Integer       ;FieldClass=FlowField;
+                                                   CalcFormula=Count(Opportunity WHERE (CM Is Workorder=CONST(Yes),
+                                                                                        CM Object No.=FIELD(No.),
+                                                                                        CM Status=CONST(In Process)));
+                                                   CaptionML=[ENU=In Proc. Workorders;
+                                                              DEA=In Bearb. - Arbeitsauftr„ge];
+                                                   Editable=No }
+    { 20300;  ;Completed Workorders;Integer       ;FieldClass=FlowField;
+                                                   CalcFormula=Count(Opportunity WHERE (CM Is Workorder=CONST(Yes),
+                                                                                        CM Object No.=FIELD(No.),
+                                                                                        CM Status=CONST(Completed)));
+                                                   CaptionML=[ENU=Completed Workorders;
+                                                              DEA=Fertiggestellte Arbeitsauftr„ge];
+                                                   Editable=No }
+    { 20400;  ;Done Workorders     ;Integer       ;FieldClass=FlowField;
+                                                   CalcFormula=Count(Opportunity WHERE (CM Is Workorder=CONST(Yes),
+                                                                                        CM Object No.=FIELD(No.),
+                                                                                        CM Status=CONST(Done)));
+                                                   CaptionML=[ENU=Done Workorders;
+                                                              DEA=Erledigte Arbeitsauftr„ge];
+                                                   Description=FF;
+                                                   Editable=No }
+    { 20500;  ;Discarded Workorders;Integer       ;FieldClass=FlowField;
+                                                   CalcFormula=Count(Opportunity WHERE (CM Is Workorder=CONST(Yes),
+                                                                                        CM Object No.=FIELD(No.),
+                                                                                        CM Status=CONST(Discarded)));
+                                                   CaptionML=[ENU=Discraded Workorders;
+                                                              DEA=Geschlossene Arbeitsauftr„ge];
+                                                   Description=FF;
+                                                   Editable=No }
+    { 20600;  ;Users               ;Integer       ;FieldClass=FlowField;
+                                                   CalcFormula=Count("CMMS Additional Data" WHERE (Type=CONST(User),
+                                                                                                   Key1=FIELD(No.)));
+                                                   CaptionML=[ENU=Users;
+                                                              DEA=Benutzer];
+                                                   Description=FF;
+                                                   Editable=No }
+    { 20610;  ;Customers           ;Integer       ;FieldClass=FlowField;
+                                                   CalcFormula=Count("CMMS Additional Data" WHERE (Type=CONST(Customer),
+                                                                                                   Key1=FIELD(No.)));
+                                                   CaptionML=[ENU=Customers;
+                                                              DEA=Debitoren];
+                                                   Description=FF;
+                                                   Editable=No }
+    { 20620;  ;Activities          ;Integer       ;FieldClass=FlowField;
+                                                   CalcFormula=Count("Interaction Log Entry" WHERE (CM Is CMMS Log Entry=CONST(Yes),
+                                                                                                    CM Object No.=FIELD(No.)));
+                                                   CaptionML=[ENU=Activities;
+                                                              DEA=Aktivit„ten];
+                                                   Description=FF;
+                                                   Editable=No }
+    { 20630;  ;Subassets           ;Integer       ;FieldClass=FlowField;
+                                                   CalcFormula=Count("CMMS Additional Data" WHERE (Type=CONST(SubAsset),
+                                                                                                   Key1=FIELD(No.)));
+                                                   CaptionML=[ENU=Subassets;
+                                                              DEA=Unteranlagen];
+                                                   Description=FF;
+                                                   Editable=No }
+    { 20640;  ;Projects            ;Integer       ;FieldClass=FlowField;
+                                                   CalcFormula=Count("CMMS Additional Data" WHERE (Type=CONST(Project),
+                                                                                                   Key1=FIELD(No.)));
+                                                   CaptionML=[ENU=Projects;
+                                                              DEA=Projekte];
+                                                   Description=FF;
+                                                   Editable=No }
+    { 20650;  ;Contracts           ;Integer       ;FieldClass=FlowField;
+                                                   CalcFormula=Count("CMMS Additional Data" WHERE (Type=CONST(Contract),
+                                                                                                   Key1=FIELD(No.)));
+                                                   CaptionML=[ENU=Contracts;
+                                                              DEA=Vetr„ge];
+                                                   Description=FF;
+                                                   Editable=No }
+    { 20660;  ;Relations           ;Integer       ;FieldClass=FlowField;
+                                                   CalcFormula=Count("CMMS Additional Data" WHERE (Type=CONST(Relation),
+                                                                                                   Key1=FIELD(No.)));
+                                                   CaptionML=[ENU=Relations;
+                                                              DEA=Verbindungen];
+                                                   Description=FF;
+                                                   Editable=No }
+    { 20670;  ;Assets              ;Integer       ;FieldClass=FlowField;
+                                                   CalcFormula=Count("CMMS Additional Data" WHERE (Type=CONST(Project),
+                                                                                                   Key2=FIELD(No.)));
+                                                   CaptionML=[ENU=Assets;
+                                                              DEA=Anlagen];
+                                                   Description=FF;
+                                                   Editable=No }
+    { 25999;  ;_TECHNICAL          ;Boolean        }
+    { 26500;  ;Inverter Type       ;Option        ;OptionString=[ ,Central,Decentral,Other] }
+    { 26600;  ;Mounting            ;Option        ;CaptionML=ENU=Mounted;
+                                                   OptionString=[ ,Ground,Roof,Other] }
+    { 26610;  ;Surroundings        ;Text50        ;CaptionML=ENU=Surroundings }
+    { 26710;  ;Commissioning Date  ;Date          ;CaptionML=ENU=Commissioning Date }
+    { 26720;  ;PAC Date            ;Date          ;CaptionML=ENU=PAC Date }
+    { 26730;  ;FAC Date            ;Date          ;CaptionML=ENU=FAC Date }
+    { 26740;  ;Additional Technical Info;Text250  ;CaptionML=ENU=Additional Technical Info }
+    { 26750;  ;Azimut              ;Decimal       ;CaptionML=[ENU=Azimut;
+                                                              DEA=Azimut];
+                                                   Description=#delete }
+    { 26760;  ;Tilt                ;Decimal       ;CaptionML=[ENU=Tilt;
+                                                              DEA=Tilt];
+                                                   Description=#delete }
+    { 29999;  ;_REPORTING          ;Boolean        }
+    { 30010;  ;Export PPA Price    ;Decimal       ;DecimalPlaces=2:4 }
+    { 30011;  ;Export PPA Currency ;Code10        ;TableRelation=Currency.Code;
+                                                   Description=NEW }
+    { 30050;  ;Irradiation Yield Study;Decimal    ;FieldClass=FlowField;
+                                                   CalcFormula=Sum("CMMS Additional Data"."Yield Total" WHERE (Objecttype=CONST(Asset),
+                                                                                                               Type=CONST(YieldStudy),
+                                                                                                               Key1=FIELD(No.),
+                                                                                                               Key3=FILTER(IRRAD*),
+                                                                                                               Valid Source=CONST(Yes)));
+                                                   CaptionML=ENU=Irradiation Yield Study [kWh/mý/Year];
+                                                   Description=FF;
+                                                   Editable=No }
+    { 30060;  ;Anticipated Annual Yield;Decimal   ;FieldClass=FlowField;
+                                                   CalcFormula=Sum("CMMS Additional Data"."Yield Total" WHERE (Objecttype=CONST(Asset),
+                                                                                                               Type=CONST(YieldStudy),
+                                                                                                               Key1=FIELD(No.),
+                                                                                                               Key3=FILTER(PROD*),
+                                                                                                               Valid Source=CONST(Yes)));
+                                                   CaptionML=ENU=Anticipated Annual Yield [kWh];
+                                                   Description=FF;
+                                                   Editable=No }
+    { 30110;  ;Subsidy Tariff Details;Decimal     ;DecimalPlaces=2:4 }
+    { 30111;  ;Subsidy Tariff Currency;Code10     ;TableRelation=Currency.Code;
+                                                   Description=NEW }
+    { 30200;  ;Email Notification  ;Boolean       ;CaptionML=[ENU=Email Notification;
+                                                              DEA=Email Benachrichtigung] }
+    { 39999;  ;_OPERATIONAL        ;Boolean        }
+    { 41000;  ;Available in PV Plus;Boolean        }
+    { 41010;  ;Available in EEM    ;Boolean        }
+    { 41020;  ;EEM Identification  ;Text250       ;Description=#datatype change }
+    { 41030;  ;Direct Marketer Interface;Boolean  ;CaptionML=ENU=Direct Marketer Interface }
+    { 41100;  ;External Portal Available;Boolean  ;CaptionML=ENU=External Portal Available }
+    { 41110;  ;Monitoring Type of Internet;Option ;OptionString=[ ,GSM,Microwave Link,Other];
+                                                   Description=#delete }
+    { 41120;  ;Monitoring Internet Details;Text150;Description=#delete }
+    { 41130;  ;Security Internet Details;Text150  ;Description=#delete }
+    { 41200;  ;On Site Maintanance ;Option        ;CaptionML=[ENU=On Site Maintanance;
+                                                              DEA=Vor Ort Wartung];
+                                                   OptionString=[ ,Internal,Subcontractor,Internal and Subcontractor,Not relevant] }
+    { 41210;  ;Security Center Handling;Boolean   ;CaptionML=ENU=Security Center Handling;
+                                                   Description=#wording }
+    { 41220;  ;Site Entry Specifics;Text250        }
+    { 41230;  ;Health and Safety Requirements;Text250 }
+    { 49999;  ;_PROJECT            ;Boolean        }
+    { 50000;  ;Project Order No.   ;Code20        ;CaptionML=[ENU=Order No.;
+                                                              DEA=Auftragsnr.] }
+    { 50010;  ;Project Quote No    ;Code20        ;CaptionML=[ENU=Quote No.;
+                                                              DEA=Angebotsnr.] }
+    { 50020;  ;Project Start Date  ;Date          ;CaptionML=[ENU=Start Date;
+                                                              DEA=Startdatum] }
+    { 50030;  ;Project End Date    ;Date          ;CaptionML=[ENU=End Date;
+                                                              DEA=Enddatum] }
+    { 50031;  ;Project Due date    ;Date          ;CaptionML=ENU=Due Date }
+    { 50040;  ;Project Trigger     ;Option        ;CaptionML=[ENU=Trigger;
+                                                              DEA=Ausl”ser];
+                                                   OptionString=[ ,Internal,Technical Enhancement,Customer Request,,,,,,,,,Other] }
+    { 50050;  ;Project Goals       ;Text80        ;CaptionML=[ENU=Goals;
+                                                              DEA=Ziele] }
+    { 50060;  ;Project Summary     ;Text80        ;CaptionML=[ENU=Summary;
+                                                              DEA=Zusammenfassung] }
+    { 50070;  ;Project Documentation;Text80       ;CaptionML=[ENU=Documentation;
+                                                              DEA=Dokumentation] }
+    { 50200;  ;Project Prority     ;Option        ;CaptionML=[ENU=Priority;
+                                                              DEA=Priorit„t];
+                                                   OptionString=Low,Medium,High }
+    { 50210;  ;Project Status      ;Option        ;OptionString=Conception,Detail planning,Under Construction,Comissioned,Closed }
+    { 50220;  ;First Project Manager;Code50       ;FieldClass=FlowField;
+                                                   CalcFormula=Lookup("CMMS Additional Data".Key2 WHERE (Type=CONST(User),
+                                                                                                         Objecttype=CONST(Project),
+                                                                                                         Key1=FIELD(No.),
+                                                                                                         Project Manager=CONST(Yes)));
+                                                   CaptionML=ENU=First Project Manager;
+                                                   Description=FF;
+                                                   Editable=No }
+    { 50221;  ;First Related Customer;Code20      ;FieldClass=FlowField;
+                                                   CalcFormula=Lookup("CMMS Additional Data".Key3 WHERE (Type=CONST(Customer),
+                                                                                                         Objecttype=CONST(Project),
+                                                                                                         Key1=FIELD(No.)));
+                                                   CaptionML=ENU=First Related Customer;
+                                                   Description=FF;
+                                                   Editable=No }
+    { 50222;  ;First Related Customer Name;Text50 ;FieldClass=FlowField;
+                                                   CalcFormula=Lookup("CMMS Additional Data"."Customer Name" WHERE (Type=CONST(Customer),
+                                                                                                                    Objecttype=CONST(Project),
+                                                                                                                    Key1=FIELD(No.)));
+                                                   CaptionML=ENU=First Related Customer;
+                                                   Description=FF;
+                                                   Editable=No }
+    { 50223;  ;First Related Asset ;Code20        ;FieldClass=FlowField;
+                                                   CalcFormula=Lookup("CMMS Additional Data".Key1 WHERE (Type=CONST(Project),
+                                                                                                         Objecttype=CONST(Asset),
+                                                                                                         Key2=FIELD(No.)));
+                                                   CaptionML=ENU=First Related Asset;
+                                                   Description=FF;
+                                                   Editable=No }
+    { 50230;  ;Project Company Name;Text30        ;TableRelation=Company.Name;
+                                                   CaptionML=ENU=Project Company Name }
+    { 50299;  ;_EXTENDED           ;Boolean        }
+    { 50300;  ;Weekend Working Procedure;Text250   }
+    { 50330;  ;Customer Demand Level;Option       ;CaptionML=ENU=Customer Demand Level;
+                                                   OptionString=[ ,not relevant,minor,below average,average,demanding,high demanding];
+                                                   Description=#deleted (Migration zu Vertag) }
+    { 50340;  ;Monitoring Access Details;Text250  ;CaptionML=ENU=Monitoring Access Details;
+                                                   Description=#delete }
+    { 59999;  ;_OTHER              ;Boolean        }
+    { 60000;  ;Responsibility Center;Code10       ;TableRelation="Responsibility Center";
+                                                   CaptionML=[ENU=Responsibility Center;
+                                                              DEA=Zust„ndigkeitseinheitencode] }
+    { 70000;  ;CM Is Temporary     ;Boolean       ;CaptionML=[ENU=Is Temporary;
+                                                              DEA=Ist Tempor„r] }
+    { 70001;  ;Empty 1             ;Boolean       ;Description=Dont ask }
+    { 70002;  ;Empty 2             ;Boolean        }
+    { 70003;  ;Empty 3             ;Boolean        }
+    { 70004;  ;Empty 4             ;Boolean        }
+    { 80000;  ;_MANAGEMENTREPORTING;Boolean        }
+    { 80010;  ;Customer No. Filter ;Code20        ;FieldClass=FlowFilter;
+                                                   Description=Filter }
+    { 80020;  ;Customer Name Filter;Text50        ;FieldClass=FlowFilter;
+                                                   Description=Filter }
+    { 80030;  ;Customer Company Chain Filter;Text50;
+                                                   FieldClass=FlowFilter;
+                                                   Description=Filter }
+    { 80110;  ;Contract No. Filter ;Code20        ;FieldClass=FlowFilter;
+                                                   TableRelation="CMMS Contract";
+                                                   Description=Filter }
+    { 80210;  ;User ID (Role) Filter;Code50       ;FieldClass=FlowFilter;
+                                                   TableRelation="User Setup";
+                                                   Description=Filter }
+    { 80310;  ;Project No. Filter  ;Code20        ;FieldClass=FlowFilter;
+                                                   TableRelation="CMMS Object".No. WHERE (Objecttype=CONST(Project));
+                                                   Description=Filter }
+    { 80320;  ;Project Name Filter ;Text50        ;FieldClass=FlowFilter;
+                                                   Description=Filter }
+    { 80420;  ;Asset Name Filter   ;Text50        ;FieldClass=FlowFilter;
+                                                   Description=Filter }
+    { 80430;  ;Asset Type Filter   ;Text50        ;FieldClass=FlowFilter;
+                                                   Description=Filter }
+    { 80510;  ;Contact No. Filter  ;Code20        ;FieldClass=FlowFilter;
+                                                   TableRelation=Contact WHERE (CMMS Is CMMS Contact=CONST(Yes));
+                                                   Description=Filter }
+    { 80520;  ;Business Relation Filter;Text50    ;FieldClass=FlowFilter;
+                                                   TableRelation="Business Relation";
+                                                   Description=Filter }
+    { 81000;  ;Date Filter         ;Date          ;FieldClass=FlowFilter;
+                                                   Editable=No }
+    { 89000;  ;No. of WOs (Due Date);Integer      ;FieldClass=FlowField;
+                                                   CalcFormula=Count(Opportunity WHERE (CM Is Workorder=CONST(Yes),
+                                                                                        CM Objecttype=FIELD(Objecttype),
+                                                                                        CM Object No.=FIELD(No.),
+                                                                                        CM Due Date=FIELD(Date Filter)));
+                                                   Editable=No }
+    { 89100;  ;No. of To-dos  (Due Date);Integer  ;FieldClass=FlowField;
+                                                   CalcFormula=Count(To-do WHERE (CM Objecttype=FIELD(Objecttype),
+                                                                                  CM Object No.=FIELD(No.),
+                                                                                  Date=FIELD(Date Filter)));
+                                                   Editable=No }
+    { 89500;  ;Asset Time Tracking Qty.;Decimal   ;FieldClass=FlowField;
+                                                   CalcFormula=Sum("Time Sheet Detail"."CM Quantity" WHERE (CM Is CMMS Timesheet=CONST(Yes),
+                                                                                                            CM Entry Date=FIELD(Date Filter),
+                                                                                                            CM Asset No.=FIELD(No.)));
+                                                   Editable=No }
+    { 89600;  ;Project Time Tracking Qty.;Decimal ;FieldClass=FlowField;
+                                                   CalcFormula=Sum("Time Sheet Detail"."CM Quantity" WHERE (CM Is CMMS Timesheet=CONST(Yes),
+                                                                                                            CM Entry Date=FIELD(Date Filter),
+                                                                                                            CM Project No.=FIELD(No.)));
+                                                   Editable=No }
+    { 90000;  ;ShowAsset           ;Boolean       ;FieldClass=FlowField;
+                                                   CalcFormula=Exist("CMMS Additional Data" WHERE (Type=CONST(User),
+                                                                                                   Key1=FIELD(No.),
+                                                                                                   Key2=FIELD(User ID Filter))) }
+    { 90010;  ;ShowAsset2          ;Boolean        }
+    { 90100;  ;User ID Filter      ;Code50        ;FieldClass=FlowFilter;
+                                                   CaptionML=[ENU=User ID Filter;
+                                                              DEA=Benutzer-ID-Filter] }
+    { 90200;  ;Block Dim.          ;Boolean        }
+  }
+  KEYS
+  {
+    {    ;Objecttype,No.                          ;Clustered=Yes }
+    {    ;Country Code,Objecttype,No.              }
+    {    ;Objecttype,Main Asset No.                }
+    {    ;Objecttype,Main Asset No.,Asset Type     }
+    {    ;Objecttype,Asset Type                    }
+    {    ;Objecttype,Responsibility Center         }
+    {    ;No.,Name                                 }
+  }
+  FIELDGROUPS
+  {
+    { 1   ;DropDown            ;No.,Name,Field300,Country Code,Operational Status,Main Asset No. }
+    { 2   ;Brick               ;No.,Name,Operational Status,Name 2,Empty 1,Country Code }
+  }
+  CODE
+  {
+    VAR
+      PostCode@1000000000 : Record 225;
+      CMUserAccMgt@1000000007 : Codeunit 70010;
+      CMAssetMgt@1000000004 : Codeunit 70020;
+      CMGenMgt@1000000002 : Codeunit 70000;
+      LogEntry@1000000003 : Record 5065;
+      Text001@1000000005 : TextConst 'ENU=Asset / Project "%1" created.';
+      Text002@1000000006 : TextConst 'ENU=From "%1" to "%2"';
+
+    BEGIN
+    END.
+  }
+}

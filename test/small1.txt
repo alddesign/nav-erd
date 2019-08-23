@@ -1,0 +1,363 @@
+OBJECT Codeunit 70026 CMMS GPM Interface Management
+{
+  OBJECT-PROPERTIES
+  {
+    Date=02.01.18;
+    Time=11:49:06;
+    Modified=Yes;
+    Version List=CMMS,GPM;
+  }
+  PROPERTIES
+  {
+    OnRun=BEGIN
+          END;
+
+  }
+  CODE
+  {
+    VAR
+      Text001@1000000001 : TextConst 'ENU=Workorder (%1) not found!';
+      Text002@1000000000 : TextConst 'ENU=Automatically closed. Ticket was deleted in GPM.';
+      Text003@1000000002 : TextConst 'ENU=Operator %1 was set to be ignored!';
+      Text004@1000000003 : TextConst 'ENU=Workorder "%1" not updated! Because of GPM Ticket State is "%2"!';
+      Text005@1000000004 : TextConst 'ENU=Workorder not created! Because of GPM Ticket State is "%1"!';
+      Text006@1000000005 : TextConst 'ENU=Ignored because alert_type is %1.';
+      Text007@1000000006 : TextConst 'ENU=Automatically closed. Ticket was "Deactivated and Assigned" in GPM.';
+      ItemRec@1000000099 : Record 27;
+
+    PROCEDURE "###GPM###"@1000000001();
+    BEGIN
+    END;
+
+    PROCEDURE ProcessRecord@1000000005(VAR Rec@1000000006 : Record 50005;ModifyRec@1000000003 : Boolean);
+    VAR
+      CMWorkorder@1000000000 : Record 5092;
+      CMGPMTicketArch@1000000001 : Record 50005;
+      CMWoMgt@1000000002 : Codeunit 70030;
+      CMGenMgt@1000000004 : Codeunit 70000;
+      LogEntry@1000000005 : Record 5065;
+    BEGIN
+      IF Rec.Processed THEN
+        EXIT;
+
+      Rec."Creation Date" := TODAY;
+      Rec."Creation Time" := TIME;
+      Rec."Creation Datetime" := CURRENTDATETIME;
+
+      ConvertTimes(Rec); //NAV UTC Datetime problem
+
+      IF CheckIngoreOperatorID(Rec.operator_id) THEN BEGIN
+        Rec."Workorder Updated" := FALSE;
+        Rec."Error Text" := STRSUBSTNO(Text003, Rec.operator_id);
+        Rec."Is Error" := TRUE;
+        EXIT;
+      END;
+
+      IF Rec.alert_type = 0 THEN BEGIN
+        Rec."Workorder Updated" := FALSE;
+        Rec."Error Text" := STRSUBSTNO(Text006, Rec.alert_type);
+        Rec."Is Error" := TRUE;
+        EXIT;
+      END;
+
+      {
+        State
+        0 : EXIT(CMWorkorder."CM GPM State"::Activated);
+        1 : EXIT(CMWorkorder."CM GPM State"::Assigned);
+        2 : EXIT(CMWorkorder."CM GPM State"::Deactivated);
+        3 : EXIT(CMWorkorder."CM GPM State"::"Deactivated and Assigned");
+      }
+
+      CMGPMTicketArch.SETCURRENTKEY(ticket_id,"Workorder No.",id);
+      CMGPMTicketArch.SETRANGE(ticket_id, Rec.ticket_id);
+      CMGPMTicketArch.SETFILTER("Workorder No.", '<>%1', '');
+      CMGPMTicketArch.SETFILTER(id, '<>%1', Rec.id);
+      IF CMGPMTicketArch.FINDLAST() THEN BEGIN //UPDATE Existing Workorder
+        IF NOT CMWorkorder.GET(CMGPMTicketArch."Workorder No.") THEN BEGIN
+          Rec."Workorder Updated" := FALSE;
+          Rec."Error Text" := STRSUBSTNO(Text001, CMGPMTicketArch."Workorder No.");
+          Rec."Is Error" := TRUE;
+          EXIT;
+        END;
+
+        Rec."Workorder No." := CMWorkorder."No.";
+
+        IF (CMWorkorder."CM Status" IN [CMWorkorder."CM Status"::Completed, CMWorkorder."CM Status"::Done, CMWorkorder."CM Status"::Discarded]) THEN BEGIN
+          Rec."Workorder Updated" := FALSE;
+        END
+        ELSE BEGIN
+          IF Rec.state IN [1,3] THEN BEGIN
+            AddDataToWorkorder(CMWorkorder, Rec);
+            CMWorkorder.MODIFY(TRUE);
+            Rec."Workorder Updated" := TRUE;
+          END
+          ELSE BEGIN
+            Rec."Workorder Updated" := FALSE;
+            Rec."Is Error" := TRUE;
+            Rec."Error Text" := STRSUBSTNO(Text004, CMWorkorder."No.", Rec.state);
+          END;
+        END
+      END
+      ELSE BEGIN //CREATE New Workorder
+        IF Rec.state IN [1,3] THEN BEGIN
+          CMWorkorder.RESET;
+          CMWorkorder.INIT;
+          CMWorkorder."No." := '';
+          CMWorkorder."CM Is Workorder" := TRUE;
+          CMWorkorder."CM Is Temporary" := FALSE;
+          AddDataToWorkorder(CMWorkorder, Rec);
+          CMWorkorder.INSERT(TRUE);
+
+          Rec."Workorder No." := CMWorkorder."No.";
+          Rec."Workorder Updated" := TRUE;
+        END
+        ELSE BEGIN
+          Rec."Workorder Updated" := FALSE;
+          Rec."Is Error" := TRUE;
+          Rec."Error Text" := STRSUBSTNO(Text005, Rec.state);
+        END;
+      END;
+
+      //Delete Flag
+      IF Rec.deleted THEN BEGIN
+        CMWorkorder."CM Status" := CMWorkorder."CM Status"::Discarded;
+        IF CMWorkorder.MODIFY(FALSE) THEN
+          CMGenMgt.CreateLogEntry(CMWorkorder,LogEntry."CM Log Type"::"Status Change", FORMAT(CMWorkorder."CM Status"), Text002);
+      END;
+
+      Rec.Processed := TRUE;
+      Rec."Processed Date" := TODAY;
+      Rec."Processed Time" := TIME;
+      Rec."Processed Datetime" := CURRENTDATETIME;
+      IF ModifyRec THEN
+        Rec.MODIFY(FALSE);
+    END;
+
+    LOCAL PROCEDURE AddDataToWorkorder@1000000000(VAR CMWorkorder@1000000000 : Record 5092;Rec@1000000001 : Record 50005);
+    BEGIN
+      CMWorkorder.Description := COPYSTR(Rec.name,1,50);
+
+      CMWorkorder."CM Source" := CMWorkorder."CM Source"::Alarm;
+      CMWorkorder."CM Assigned User ID" := MapOperatorId(Rec.operator_id);
+      CMWorkorder."CM Objecttype" := CMWorkorder."CM Objecttype"::Asset;
+      CMWorkorder."CM Object No." := MapPlantId(Rec.reference_plant_id);
+      FillObjectName(CMWorkorder);
+      CMWorkorder."CM GPM Ticket Id" := Rec.ticket_id;
+      CMWorkorder."CM GPM Ticket Name" := Rec.name;
+      CMWorkorder."CM GPM Grouping" := ConvertGrouping(Rec.grouping);
+      CMWorkorder."CM GPM Activated DateTime" := Rec.activated_time;
+      CMWorkorder."CM GPM Activated Date" := Rec.activated_time_DATE;
+      CMWorkorder."CM GPM Activated Time" := Rec.activated_time_TIME;
+      CMWorkorder."CM GPM Deactivated DateTime" := Rec.deactivated_time;
+      CMWorkorder."CM GPM Deactivated Date" := Rec.deactivated_time_DATE;
+      CMWorkorder."CM GPM Deactivated Time" := Rec.deactivated_time_TIME;
+      CMWorkorder."CM GPM Reference Element ID" := Rec.reference_element_id;
+      CMWorkorder."CM GPM Reference Element Name" := Rec.reference_element_name;
+      CMWorkorder."CM GPM Prority" := Rec.priority;
+      CMWorkorder."CM GPM State" := ConvertState(Rec.state);
+      CMWorkorder."CM GPM Alert Type" := ConvertAlertType(Rec.alert_type);
+      CMWorkorder."CM GPM Activation Description" := Rec.activation_description_BLOB;
+      CMWorkorder."CM GPM Deactivation Descr." := Rec.deactivation_description_BLOB;
+      CMWorkorder."CM GPM Activation Details" := Rec.activation_details_BLOB;
+      CMWorkorder."CM GPM Deactivation Details" := Rec.deactivation_details_BLOB;
+      CMWorkorder."CM GPM Plant ID" := Rec.reference_plant_id;
+      CMWorkorder."CM GPM Affects Availibility" := Rec.affects_availibility;
+      CMWorkorder."CM GPM Calculate Loss" := Rec.calculate_loss;
+      CMWorkorder."CM GPM Problem Description" := Rec.problem_description_BLOB;
+      CMWorkorder."CM GPM Company" := Rec.company;
+      CMWorkorder."CM GPM Ticket Duration" := Rec.time_t;
+      CMWorkorder."CM GPM Actions Performed" := Rec.actions_performed_BLOB;
+      CMWorkorder."CM GPM Maintenance Type" := ConvertMaintenanceType(Rec.maintenance_type_id);
+      CMWorkorder."CM GPM Notified DateTime" := Rec.notified_time;
+      CMWorkorder."CM GPM Notified Date" := Rec.notified_time_DATE;
+      CMWorkorder."CM GPM Notified Time" := Rec.notified_time_TIME;
+    END;
+
+    LOCAL PROCEDURE ConvertTimes@1000000012(VAR Rec@1000000000 : Record 50005);
+    BEGIN
+      DateTime2UTCDateAndTime(Rec.activated_time, Rec.activated_time_DATE, Rec.activated_time_TIME);
+      DateTime2UTCDateAndTime(Rec.deactivated_time, Rec.deactivated_time_DATE, Rec.deactivated_time_TIME);
+      DateTime2UTCDateAndTime(Rec.notified_time, Rec.notified_time_DATE, Rec.notified_time_TIME);
+    END;
+
+    PROCEDURE DateTime2UTCDateAndTime@1000000014(DateTimeValue@1000000000 : DateTime;VAR DateValue@1000000002 : Date;VAR TimeValue@1000000003 : Time);
+    VAR
+      DotNetDateTime@1000000004 : DotNet "'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089'.System.DateTime";
+      DotNetDateTimeKind@1000000001 : DotNet "'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089'.System.DateTimeKind";
+    BEGIN
+      DotNetDateTime := DateTimeValue;
+
+      DateValue := DT2DATE(DateTimeValue);
+
+      TimeValue := DT2TIME(DotNetDateTime.DateTime(DotNetDateTime.Year, DotNetDateTime.Month, DotNetDateTime.Day,
+                           DotNetDateTime.Hour, DotNetDateTime.Minute, DotNetDateTime.Second, DotNetDateTimeKind.Local));
+    END;
+
+    LOCAL PROCEDURE ConvertGrouping@1000000003(value@1000000000 : Integer) : Integer;
+    VAR
+      CMWorkorder@1000000001 : Record 5092;
+    BEGIN
+      {
+        GPM says:
+        1Communications
+        2Production
+        3Warnings
+        4Manuals
+        5Scheduled
+      }
+
+      CASE value OF
+        1 : EXIT(CMWorkorder."CM GPM Grouping"::Communications);
+        2 : EXIT(CMWorkorder."CM GPM Grouping"::Production);
+        3 : EXIT(CMWorkorder."CM GPM Grouping"::Warnings);
+        4 : EXIT(CMWorkorder."CM GPM Grouping"::Manuals);
+        5 : EXIT(CMWorkorder."CM GPM Grouping"::Scheduled);
+      END;
+
+      EXIT(0);
+    END;
+
+    LOCAL PROCEDURE ConvertState@1000000004(value@1000000000 : Integer) : Integer;
+    VAR
+      CMWorkorder@1000000001 : Record 5092;
+    BEGIN
+      {
+        GPM says:
+        0Activated
+        1Assigned
+        2Deactivated
+        3Deactivated and Assigned
+      }
+
+      CASE value OF
+        0 : EXIT(CMWorkorder."CM GPM State"::Activated);
+        1 : EXIT(CMWorkorder."CM GPM State"::Assigned);
+        2 : EXIT(CMWorkorder."CM GPM State"::Deactivated);
+        3 : EXIT(CMWorkorder."CM GPM State"::"Deactivated and Assigned");
+      END;
+
+      EXIT(0);
+    END;
+
+    LOCAL PROCEDURE ConvertAlertType@1000000006(value@1000000000 : Integer) : Integer;
+    VAR
+      CMWorkorder@1000000001 : Record 5092;
+    BEGIN
+      {
+        GPM says:
+        0Usual Alert
+        1Alert with Ticket
+      }
+
+      CASE value OF
+        0 : EXIT(CMWorkorder."CM GPM Alert Type"::"Usual Alert");
+        1 : EXIT(CMWorkorder."CM GPM Alert Type"::"Alert with Ticket");
+      END;
+
+      EXIT(0);
+    END;
+
+    LOCAL PROCEDURE ConvertMaintenanceType@1000000007(value@1000000000 : Integer) : Integer;
+    VAR
+      CMWorkorder@1000000001 : Record 5092;
+    BEGIN
+      {
+        GPM says:
+       -1 Undefined Maintenance
+        0NotSpecified Maintenance
+        1Corrective Maintenance
+        2Preventive Maintenance
+        3Deductive Maintenance
+      }
+
+      CASE value OF
+        -1 : EXIT(CMWorkorder."CM GPM Maintenance Type"::"Undefined Maintenance");
+        0 : EXIT(CMWorkorder."CM GPM Maintenance Type"::"NotSpecified Maintenance");
+        1 : EXIT(CMWorkorder."CM GPM Maintenance Type"::"Corrective Maintenance");
+        2 : EXIT(CMWorkorder."CM GPM Maintenance Type"::"Preventive Maintenance");
+        3 : EXIT(CMWorkorder."CM GPM Maintenance Type"::"Deductive Maintenance");
+      END;
+
+      EXIT(0);
+    END;
+
+    LOCAL PROCEDURE MapOperatorId@1000000010(GpmOperatorId@1000000000 : Integer) : Code[50];
+    VAR
+      CMAddData@1000000001 : Record 70021;
+    BEGIN
+      //Mapping between GPM Operator Id and CMMS User ID
+      CMAddData.RESET;
+      CMAddData.SETRANGE(Objecttype, CMAddData.Objecttype::Asset);
+      CMAddData.SETRANGE(Type, CMAddData.Type::GpmOperatorMapping);
+      CMAddData.SETRANGE(Key1, FORMAT(GpmOperatorId));
+      IF CMAddData.FINDFIRST() THEN
+        EXIT(CMAddData."User Id");
+
+      EXIT('');
+    END;
+
+    LOCAL PROCEDURE MapPlantId@1000000011(GpmPlantId@1000000000 : Integer) : Code[20];
+    VAR
+      CMAddData@1000000001 : Record 70021;
+    BEGIN
+      //Mapping between GPM Plant Id and CMMS Asset No.
+
+      CMAddData.RESET;
+      CMAddData.SETRANGE(Objecttype, CMAddData.Objecttype::Asset);
+      CMAddData.SETRANGE(Type, CMAddData.Type::GpmPlantMapping);
+      CMAddData.SETRANGE(Key1, FORMAT(GpmPlantId));
+      IF CMAddData.FINDFIRST() THEN
+        EXIT(CMAddData."Asset No.");
+
+      EXIT('');
+    END;
+
+    LOCAL PROCEDURE CheckIngoreOperatorID@1000000009(GpmOperatorId@1000000000 : Integer) : Boolean;
+    VAR
+      CMAddData@1000000001 : Record 70021;
+    BEGIN
+      CMAddData.RESET;
+      CMAddData.SETRANGE(Objecttype, CMAddData.Objecttype::Asset);
+      CMAddData.SETRANGE(Type, CMAddData.Type::GpmOperatorMapping);
+      CMAddData.SETRANGE(Key1, FORMAT(GpmOperatorId));
+      CMAddData.SETRANGE("Ignore this Operator", TRUE);
+      EXIT(CMAddData.FINDFIRST());
+    END;
+
+    LOCAL PROCEDURE CloseWorkorder@1000000008();
+    BEGIN
+    END;
+
+    LOCAL PROCEDURE FillObjectName@1000000031(VAR Rec@1000000000 : Record 5092);
+    VAR
+      CMObject@1000000001 : Record 70020;
+    BEGIN
+      IF Rec."CM Object No." <> '' THEN BEGIN
+        IF NOT CMObject.GET(Rec."CM Objecttype", Rec."CM Object No.") THEN
+          CMObject.INIT;
+
+        Rec."CM Object Name" := CMObject.Name;
+        Rec."CM Object Name 2" := CMObject."Name 2";
+      END;
+    END;
+
+    PROCEDURE "###CMMS###"@1000000002();
+    BEGIN
+    END;
+
+    PROCEDURE ShowAlarmArchive@1000000022();
+    VAR
+      Rec@1000000001 : Record 50005;
+      ListPage@1000000000 : Page 70002;
+    BEGIN
+      Rec.RESET;
+      //TicketArchive.ASCENDING(TRUE);
+
+      ListPage.SETTABLEVIEW(Rec);
+      ListPage.RUN();
+    END;
+
+    BEGIN
+    END.
+  }
+}

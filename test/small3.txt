@@ -1,0 +1,797 @@
+OBJECT Codeunit 70030 CMMS Workorder Management
+{
+  OBJECT-PROPERTIES
+  {
+    Date=08.05.18;
+    Time=14:33:40;
+    Modified=Yes;
+    Version List=CMMS;
+  }
+  PROPERTIES
+  {
+    OnRun=BEGIN
+          END;
+
+  }
+  CODE
+  {
+    VAR
+      CMGenMgt@1000000000 : Codeunit 70000;
+      Text001@1000000001 : TextConst 'ENU=Status Change from "%1" to "%2" cannot be done manually.;DEA=Der Statusbergang von "%1" auf "%2" kann nicht manuell get„tigt werden.';
+      CMTaskMgt@1000000004 : Codeunit 70031;
+      CMWoMgt@1000000016 : Codeunit 70030;
+      LogEntry@1000000002 : Record 5065;
+      Text002@1000000003 : TextConst 'ENU=Invalid Status Value %1!;DEA=Ungltiger Statuswert %1!';
+      CMUserAccessMgmt@1000000005 : Codeunit 70010;
+      Text003@1000000006 : TextConst 'ENU=Canceled.;DEA=Abgebrochen.';
+      Text004@1000000007 : TextConst 'ENU=From "%1" to "%2"';
+      Text005@1000000008 : TextConst 'ENU=Workorder "%1" created.';
+      Text006@1000000009 : TextConst 'ENU=%1 cannot be after %2!;DEA=%1 darf nicht nach %2 sein!';
+      Text007@1000000010 : TextConst 'ENU=Canceled! ''%1'' must not be empty!;DEA=Abgebrochen. ''%1'' darf nicht leer sein!';
+      Text008@1000000011 : TextConst 'ENU=No comment text entered!;DEA=Kein Kommentartext eingegeben!';
+      Text009@1000000012 : TextConst 'ENU=Automatically closed by System. Workorder finished.';
+      Text010@1000000013 : TextConst 'ENU=Warning! There are %1 open Tasks in this Workoder. Do you really want to change the Workorder Status to "%2"?;DEA=Achtung! %1 Aufgaben sind in diesem Arbeitsauftrag noch offen. Wollen sie den Status auf wirklich auf "%2" „ndern?';
+      DisableKeyOptimization@1000000014 : Boolean;
+      Text011@1000000015 : TextConst 'ENU=Do you want to set the status of your Alarm Workorder to "%1"?;DEA=Wollen Sie den Status ihrer Alarm Workorder auf "%1" setzen?';
+      Text012@1000000017 : TextConst 'ENU=Cannot create Workorder Comment. Status of Workorder "%1" is "%2".;DEA=Arbeitsauftrag Kommentar kann nicht erstellt werden. Status von Arbeitsauftrag "%1" ist "%2".';
+      Text013@1000000018 : TextConst 'ENU=Save File;DEA=Datei speichern';
+      Text014@1000000019 : TextConst 'ENU=SiteVisitingReport_%1_%2_%3.%4';
+      CMPublisher@1000000020 : Codeunit 70037;
+      Text015@1000000021 : TextConst 'ENU=Comment text has to consist of at least %1 character(s).';
+
+    PROCEDURE "###TRIGGER###"@1000000023();
+    BEGIN
+    END;
+
+    PROCEDURE OnInsert@1000000001(VAR Rec@1000000000 : Record 5092);
+    VAR
+      CMObject@1000000001 : Record 70020;
+    BEGIN
+      IF (NOT Rec."CM Is Workorder") OR (Rec."CM Is Temporary") THEN
+        EXIT;
+
+      CMGenMgt.GetWorkorderNo(Rec);
+      Rec."CM Created By User ID" := USERID;
+      Rec."CM Created Datetime" := CURRENTDATETIME;
+
+      IF Rec."CM Due Date" = 0D THEN
+        Rec."CM Due Date" := WORKDATE;
+
+      IF Rec."CM Scheduled Due Date" = 0D THEN
+        Rec."CM Scheduled Due Date" := Rec."CM Due Date";
+
+      FillObjectName(Rec);
+
+      CMGenMgt.CreateLogEntry(Rec,LogEntry."CM Log Type"::Created,Rec."No.", STRSUBSTNO(Text005, Rec."No."));
+
+      CMPublisher.OnAfterInsertWorkorder(Rec); //Publish
+    END;
+
+    PROCEDURE OnModify@1000000002(VAR Rec@1000000000 : Record 5092;VAR xRec@1000000001 : Record 5092);
+    VAR
+      StatusChangeOK@1000000002 : Boolean;
+      Task@1000000003 : Record 5080;
+    BEGIN
+      IF (NOT Rec."CM Is Workorder") OR (Rec."CM Is Temporary") THEN
+        EXIT;
+    END;
+
+    PROCEDURE OnDelete@1000000003(VAR Rec@1000000000 : Record 5092);
+    BEGIN
+      IF (NOT Rec."CM Is Workorder") THEN
+        EXIT;
+
+      CMGenMgt.DeleteTasksByWo(Rec,TRUE);
+    END;
+
+    PROCEDURE OnValidate_Description@1000000000(VAR Rec@1000000000 : Record 5092;VAR xRec@1000000001 : Record 5092);
+    BEGIN
+      IF (NOT Rec."CM Is Workorder") OR (Rec."CM Is Temporary") THEN
+        EXIT;
+    END;
+
+    PROCEDURE OnValidate_CMObjectNo@1000000010(VAR Rec@1000000000 : Record 5092;VAR xRec@1000000001 : Record 5092);
+    BEGIN
+      IF (NOT Rec."CM Is Workorder") OR (Rec."CM Is Temporary") THEN
+        EXIT;
+
+      FillObjectName(Rec);
+    END;
+
+    PROCEDURE OnValidate_CMObjectType@1000000030(VAR Rec@1000000000 : Record 5092;VAR xRec@1000000001 : Record 5092);
+    BEGIN
+      IF (NOT Rec."CM Is Workorder") OR (Rec."CM Is Temporary") THEN
+        EXIT;
+
+      FillObjectName(Rec);
+    END;
+
+    PROCEDURE OnValidate_CMWorkorderTypeCode@1000000011(VAR Rec@1000000000 : Record 5092;VAR xRec@1000000001 : Record 5092);
+    BEGIN
+      IF (NOT Rec."CM Is Workorder") OR (Rec."CM Is Temporary") THEN
+        EXIT;
+
+      CMTaskMgt.CreateTasksToWorkorder(Rec);
+    END;
+
+    PROCEDURE OnValidate_CMAssignedUserID@1000000012(VAR Rec@1000000000 : Record 5092;VAR xRec@1000000001 : Record 5092);
+    BEGIN
+      IF (NOT Rec."CM Is Workorder") OR (Rec."CM Is Temporary") THEN
+        EXIT;
+    END;
+
+    PROCEDURE OnValidate_Priority@1000000013(VAR Rec@1000000000 : Record 5092;VAR xRec@1000000001 : Record 5092);
+    BEGIN
+      IF (NOT Rec."CM Is Workorder") OR (Rec."CM Is Temporary") THEN
+        EXIT;
+    END;
+
+    PROCEDURE OnValidate_DueDates@1000000021(VAR Rec@1000000001 : Record 5092;VAR xRec@1000000000 : Record 5092);
+    BEGIN
+      Rec.TESTFIELD("CM Due Date");
+
+      IF Rec."CM Scheduled Due Date" > Rec."CM Due Date" THEN
+        ERROR(Text006, Rec.FIELDCAPTION("CM Scheduled Due Date"), Rec.FIELDCAPTION("CM Due Date"));
+    END;
+
+    PROCEDURE "###WORKORDER###"@1000000025();
+    BEGIN
+    END;
+
+    PROCEDURE NewWorkorder@1000000004(VAR Rec@1000000000 : Record 5092) : Code[20];
+    VAR
+      Workorder@1000000001 : Record 5092;
+      WoCard@1000000002 : Page 70100;
+    BEGIN
+      Rec."No." := '';
+      Rec."CM Is Workorder" := TRUE;
+      Rec."CM Is Temporary" := FALSE;
+      Rec.INSERT(TRUE);
+
+      CMTaskMgt.CreateTasksToWorkorder(Rec);
+
+      WoCard.SETRECORD(Rec);
+      WoCard.RUN();
+
+      EXIT(Rec."No.");
+    END;
+
+    PROCEDURE NewWorkorderToObjectUI@1000000014(VAR Rec@1000000003 : Record 70020;HideWorkorderTypeSelection@1000000004 : Boolean) : Code[20];
+    VAR
+      Page@1000000002 : Page 70105;
+      Workorder@1000000001 : Record 5092;
+      CMWoMgt@1000000000 : Codeunit 70030;
+    BEGIN
+      IF Rec."No." <> '' THEN
+        Page.SetAsset(Rec);
+
+      Page.HideWorkorderType(HideWorkorderTypeSelection);
+      Workorder.INIT;
+      IF Page.RUNMODAL() = ACTION::Yes THEN BEGIN
+        Page.GETRECORD(Workorder);
+        EXIT(NewWorkorder(Workorder));
+      END;
+
+      EXIT('');
+    END;
+
+    PROCEDURE NewWorkorderUI@1000000017() : Code[20];
+    VAR
+      EmptyObject@1000000000 : Record 70020;
+    BEGIN
+      EmptyObject.INIT;
+      EmptyObject."No." := '';
+
+      EXIT(NewWorkorderToObjectUI(EmptyObject,FALSE));
+    END;
+
+    PROCEDURE ChangeStatus@1000000037(VAR Rec@1000000000 : Record 5092;NewStatus@1000000001 : Integer;CommentText@1000000008 : Text[250];StatusChangeStdText@1000000009 : Integer;StatusChangeStdTextFormated@1000000005 : Text);
+    VAR
+      OldStatusText@1000000004 : Text;
+      OldStatus@1000000003 : Integer;
+      EntryNo@1000000006 : Integer;
+      EntryNo2@1000000002 : Integer;
+      EntryNo3@1000000010 : Integer;
+      LocLogEntry@1000000007 : Record 5065;
+      StdTextInternal@1000000011 : Boolean;
+    BEGIN
+      OldStatusText := FORMAT(Rec."CM Status");
+      OldStatus := Rec."CM Status";
+      EntryNo := -1;
+      EntryNo2 := -1;
+
+      //Change Status!!
+      Rec."CM Status" := NewStatus;
+      Rec."CM Status Change Standard Text" := StatusChangeStdText;
+      Rec.MODIFY(TRUE);
+
+      //Check Billing Info
+      IF (Rec."CM Status" = Rec."CM Status"::Done) AND (Rec."CM Billing Info" = 0) THEN
+        ERROR(STRSUBSTNO(Text007, Rec.FIELDCAPTION(Rec."CM Billing Info")));
+
+      //Check Open Tasks
+      Rec.CALCFIELDS("CM Open Tasks");
+      IF (Rec."CM Status" IN [ Rec."CM Status"::Completed, Rec."CM Status"::Done, Rec."CM Status"::Discarded]) AND
+          (Rec."CM Open Tasks" > 0) THEN BEGIN
+          IF NOT CONFIRM(STRSUBSTNO(Text010, Rec."CM Open Tasks", Rec."CM Status")) THEN
+            ERROR(Text003);
+      END;
+
+      //Close tasks!!!
+      IF Rec."CM Status" IN [Rec."CM Status"::Done, Rec."CM Status"::Discarded] THEN
+        CloseTasksAutomatically(Rec);
+
+      //Create Log Entry | Write Comment
+      IF OldStatus <> Rec."CM Status" THEN BEGIN
+        EntryNo := CMGenMgt.CreateLogEntry(Rec,LogEntry."CM Log Type"::"Status Change", FORMAT(Rec."CM Status"), CommentText);
+
+        //Comment
+        IF CommentText <> '' THEN BEGIN
+          CheckCommentLength(CommentText);
+          EntryNo2 := CMGenMgt.CreateLogEntryComment(Rec, FALSE, CommentText);
+        END;
+
+        //Standard Texts
+        IF StatusChangeStdTextFormated <> '' THEN BEGIN
+          IF NewStatus = Rec."CM Status"::Completed THEN
+            StdTextInternal := TRUE
+          ELSE
+            StdTextInternal := FALSE;
+          EntryNo2 := CMGenMgt.CreateLogEntryComment(Rec, StdTextInternal, StatusChangeStdTextFormated);
+        END;
+      END;
+
+      //Modify Log Entry
+      ChangeLogEntryAfterStatusChange(EntryNo, StatusChangeStdText, 0);
+      ChangeLogEntryAfterStatusChange(EntryNo2, StatusChangeStdText, EntryNo);
+      ChangeLogEntryAfterStatusChange(EntryNo3, StatusChangeStdText, EntryNo);
+
+      CMPublisher.OnAfterChangeWorkorderStatus(Rec, OldStatus, NewStatus); //Publisher
+    END;
+
+    PROCEDURE ChangeStatusUI@1000000026(VAR Rec@1000000000 : Record 5092);
+    VAR
+      Page@1000000001 : Page 70011;
+      Rec2@1000000002 : Record 5092;
+      Commenttext@1000000003 : Text[250];
+      StdText@1000000004 : Text;
+    BEGIN
+      Page.SetData(Rec);
+      IF Page.RUNMODAL <> ACTION::OK THEN
+        ERROR(Text003);
+
+      Rec2.INIT;
+      Page.GetData(Rec2, Commenttext);
+      IF Rec2."CM Status Change Standard Text" > 0 THEN
+        StdText := FORMAT(Rec2."CM Status Change Standard Text");
+
+      Rec."CM Billing Info" := Rec2."CM Billing Info";
+      ChangeStatus(Rec, Rec2."CM Status", Commenttext, Rec2."CM Status Change Standard Text", StdText);
+      //ChangeStatus(Rec, Page.GetStatus(), Page.GetComment(), Page.GetTicketClosingReason(), Page.GetTicketClosingReasonText());
+    END;
+
+    PROCEDURE ChangeStatusOpenToNew@1000000041(VAR Rec@1000000000 : Record 5092);
+    BEGIN
+      IF (USERID = Rec."CM Assigned User ID") AND
+         (Rec."CM Status" = Rec."CM Status"::New) AND
+         (Rec."CM Source" = Rec."CM Source"::Alarm)  THEN BEGIN
+        IF CONFIRM(STRSUBSTNO(Text011, Rec."CM Status"::Open)) THEN
+          ChangeStatus(Rec, Rec."CM Status"::Open, '', 0, '');
+      END;
+    END;
+
+    PROCEDURE LinkToAssetProjectUI@1000000020(VAR Rec@1000000000 : Record 5092;DoModify@1000000002 : Boolean);
+    VAR
+      ConfirmationPage@1000000001 : Page 70109;
+      Task@1000000003 : Record 5080;
+      CMObject@1000000004 : Record 70020;
+    BEGIN
+      ConfirmationPage.LOOKUPMODE(TRUE);
+
+      IF ConfirmationPage.RUNMODAL() <> ACTION::LookupOK THEN
+        ERROR(Text003);
+
+      CMObject.GET(ConfirmationPage.GetObjecttype(), ConfirmationPage.GetObjectno());
+
+      Rec."CM Objecttype" := CMObject.Objecttype;
+      Rec."CM Object No." := CMObject."No.";
+      Rec."CM Object Name" := CMObject.Name;
+      Rec."CM Object Name 2" := CMObject."Name 2";
+
+      IF DoModify THEN
+        Rec.MODIFY(FALSE);
+
+      //Change Tasks
+      Task.SETCURRENTKEY("CM Type","Opportunity No.","CM Subtype","CM Status","No.");
+      Task.SETRANGE("CM Type", Task."CM Type"::Task);
+      Task.SETRANGE("Opportunity No.", Rec."No.");
+      Task.SETRANGE("CM Status", Task."CM Status"::Open);
+      Task.SETRANGE("CM Subtype", Task."CM Subtype"::" ");
+      Task.MODIFYALL("CM Objecttype", Rec."CM Objecttype");
+      Task.MODIFYALL("CM Object No.", Rec."CM Object No.");
+    END;
+
+    PROCEDURE ChangeAssignedUser@1000000006(VAR Rec@1000000000 : Record 5092;NewUid@1000000001 : Code[50];DoModify@1000000002 : Boolean);
+    VAR
+      OldUid@1000000003 : Code[50];
+    BEGIN
+      OldUid := Rec."CM Assigned User ID";
+
+      Rec.VALIDATE("CM Assigned User ID", NewUid);
+      IF DoModify THEN
+        Rec.MODIFY(TRUE);
+
+      CMGenMgt.CreateLogEntry(Rec,LogEntry."CM Log Type"::"Assigned User Changed", NewUid, STRSUBSTNO(Text004, OldUid, NewUid));
+      CMPublisher.OnAfterChangeWorkorderAssignedUserID(Rec, OldUid, NewUid); //Publish
+    END;
+
+    PROCEDURE ChangeAssignedUserUI@1000000008(VAR Rec@1000000000 : Record 5092);
+    VAR
+      NewUserID@1000000003 : Code[50];
+      Page@1000000004 : Page 70107;
+    BEGIN
+      NewUserID := '';
+
+      Page.SetUserID(Rec."CM Assigned User ID");
+      Page.LOOKUPMODE(TRUE);
+      IF Page.RUNMODAL()  = ACTION::LookupOK THEN
+        NewUserID := Page.GetUserID();
+
+      IF NewUserID <> '' THEN
+        ChangeAssignedUser(Rec,NewUserID,TRUE);
+    END;
+
+    PROCEDURE AddCommentUI@1000000009(VAR Rec@1000000000 : Record 5092;CopyFromEntryNo@1000000002 : Integer) : Integer;
+    VAR
+      Page@1000000001 : Page 70108;
+      LocLogEntry@1000000005 : Record 5065;
+      EntryNo@1000000006 : Integer;
+      TempLogEntry@1000000003 : TEMPORARY Record 5065;
+    BEGIN
+      EntryNo := 0;
+
+      IF Rec."CM Status" IN [Rec."CM Status"::Done, Rec."CM Status"::Discarded] THEN
+        ERROR(Text012, Rec."No.", Rec."CM Status");
+
+      IF (CopyFromEntryNo <> 0) AND (LocLogEntry.GET(CopyFromEntryNo)) THEN BEGIN
+        Page.SetRec(LocLogEntry);
+        Page.SetText(LocLogEntry."CM Comment");
+      END;
+
+      Page.LOOKUPMODE := TRUE;
+      IF Page.RUNMODAL <> ACTION::LookupOK THEN
+        ERROR(Text003);
+
+      Page.GETRECORD(TempLogEntry);
+
+      IF TempLogEntry."CM Comment" = '' THEN
+        ERROR(Text008);
+
+      LocLogEntry.GET(CMGenMgt.CreateLogEntryComment(Rec,TempLogEntry."CM Internal", TempLogEntry."CM Comment"));
+      LocLogEntry."CM Issue" := TempLogEntry."CM Issue";
+      LocLogEntry."CM Production Effect" := TempLogEntry."CM Production Effect";
+      LocLogEntry.MODIFY(FALSE);
+
+      EXIT(LocLogEntry."Entry No.");
+    END;
+
+    PROCEDURE ShowRelatedLogs@1000000019(VAR Rec@1000000000 : Record 5092;LogType@1000000003 : Integer;Scope@1000000004 : 'Workorder,Task,Workoder and Task');
+    VAR
+      Rec2@1000000001 : Record 5065;
+      ListPage@1000000002 : Page 70111;
+    BEGIN
+      GetRelatedLogs(Rec, Rec2, LogType, Scope);
+      ListPage.SETTABLEVIEW(Rec2);
+      ListPage.RUN();
+    END;
+
+    PROCEDURE CountRelatedLogs@1000000036(VAR Rec@1000000000 : Record 5092;LogType@1000000003 : Integer;Scope@1000000004 : 'Workorder,Task,Workoder and Task') : Integer;
+    VAR
+      Rec2@1000000001 : Record 5065;
+    BEGIN
+      GetRelatedLogs(Rec, Rec2, LogType, Scope);
+      EXIT(Rec2.COUNT());
+    END;
+
+    LOCAL PROCEDURE GetRelatedLogs@1000000033(VAR Rec@1000000000 : Record 5092;VAR Rec2@1000000001 : Record 5065;LogType@1000000003 : Integer;Scope@1000000004 : 'Workorder,Task,Workoder and Task');
+    BEGIN
+      Rec2.RESET;
+      Rec2.SETCURRENTKEY("CM Is CMMS Log Entry","Opportunity No.");
+      Rec2.FILTERGROUP(2);
+      Rec2.SETRANGE("CM Is CMMS Log Entry", TRUE);
+      IF LogType >= 0 THEN
+        Rec2.SETRANGE("CM Log Type", LogType);
+      Rec2.FILTERGROUP(0);
+      Rec2.SETRANGE("Opportunity No.", Rec."No.");
+      IF Scope = Scope::Workorder THEN
+        Rec2.SETRANGE("CM Source",Rec2."CM Source"::Workorder);
+      IF Scope = Scope::Task THEN
+        Rec2.SETRANGE("CM Source",Rec2."CM Source"::Task);
+      IF Scope = Scope::"Workoder and Task" THEN
+        Rec2.SETFILTER("CM Source",'%1|%2',Rec2."CM Source"::Workorder, Rec2."CM Source"::Task);
+    END;
+
+    PROCEDURE "###WORKORDER SHOW COUNT###"@1000000032();
+    BEGIN
+    END;
+
+    PROCEDURE GetWorkorders@1000000035(VAR Rec@1000000003 : Record 5092;ObjectNo@1000000007 : Code[20];RespUserIDFilter@1000000000 : Text;AssignedUserIDFilter@1000000005 : Text;DateFilter@1000000001 : Text;StatusFilter@1000000006 : Text;DateFilter2@1000000011 : Text;SourceFilter@1000000012 : Text);
+    VAR
+      CMMSAdditionalData@1000000009 : Record 70021;
+      CMMSObject@1000000010 : Record 70020;
+      AssetRespFilter@1000000002 : Text;
+      ProjectRespFilter@1000000013 : Text;
+      UserSetup@1000000014 : Record 91;
+    BEGIN
+      //Parameter "SourceFilter": Empty = No Filter, All other Values will be seen als Filter (See Table Opportunity."CM Source")
+      IF NOT UserSetup.GET(USERID) THEN
+        UserSetup.INIT;
+
+      AssetRespFilter := CMUserAccessMgmt.GetAssetRespFilter();
+      ProjectRespFilter := CMUserAccessMgmt.GetProjectRespFilter();
+
+      Rec.RESET;
+      OptimizeKey(Rec,ObjectNo,RespUserIDFilter,AssignedUserIDFilter,DateFilter,StatusFilter,DateFilter2,SourceFilter);
+      Rec.FILTERGROUP(2);
+      Rec.SETRANGE("CM Is Workorder", TRUE);
+
+      //Filters:
+      IF ObjectNo <> '' THEN
+        Rec.SETRANGE("CM Object No.",ObjectNo);
+      IF StatusFilter <> '' THEN
+        Rec.SETFILTER(Rec."CM Status", StatusFilter);
+      IF SourceFilter <> '' THEN
+        Rec.SETFILTER("CM Source", SourceFilter);
+
+      //Flow Filters
+      IF DateFilter <> '' THEN
+        Rec.SETFILTER(Rec."CM Due Date", DateFilter);
+      IF DateFilter2 <> '' THEN
+        Rec.SETFILTER(Rec."CM Scheduled Due Date", DateFilter2);
+
+      IF RespUserIDFilter <> '' THEN BEGIN
+        IF NOT UserSetup."IG Workorder Administrator" THEN
+          Rec.SETFILTER("CM Object No.",'<>%1','');
+        IF Rec.FIND('-') THEN
+          REPEAT
+            IF (NOT UserSetup."IG Workorder Administrator") THEN BEGIN
+              {Object --> User}
+              CMMSAdditionalData.SETRANGE(Type,CMMSAdditionalData.Type::User);
+              CMMSAdditionalData.SETFILTER(Key1,Rec."CM Object No.");
+              CMMSAdditionalData.SETFILTER(Key2,RespUserIDFilter);
+              IF CMMSAdditionalData.FINDFIRST THEN
+                Rec.MARK(TRUE);
+
+              {Responsibility Center --> Asset}
+              IF AssetRespFilter <> '' THEN BEGIN
+                CMMSObject.SETRANGE(Objecttype, CMMSObject.Objecttype::Asset);
+                CMMSObject.SETRANGE("No.", Rec."CM Object No.");
+                CMMSObject.SETFILTER("Responsibility Center", AssetRespFilter);
+                IF CMMSObject.FINDFIRST THEN
+                  Rec.MARK(TRUE);
+              END;
+
+              {Responsibility Center --> Project}
+              IF ProjectRespFilter <> '' THEN BEGIN
+                CMMSObject.SETRANGE(Objecttype, CMMSObject.Objecttype::Project);
+                CMMSObject.SETRANGE("No.", Rec."CM Object No.");
+                CMMSObject.SETFILTER("Responsibility Center", ProjectRespFilter);
+                IF CMMSObject.FINDFIRST THEN
+                  Rec.MARK(TRUE);
+              END;
+            END
+            ELSE
+              Rec.MARK(TRUE);
+          UNTIL Rec.NEXT = 0;
+      END;
+
+      IF AssignedUserIDFilter <> '' THEN BEGIN
+        Rec.SETRANGE("CM Object No.");
+        Rec.SETFILTER("CM User ID Filter",AssignedUserIDFilter);
+        {Assigned Tasks to User}
+        IF Rec.FIND('-') THEN
+          REPEAT
+            Rec.CALCFIELDS("CM Show Workorder");
+            IF Rec."CM Show Workorder" THEN
+              Rec.MARK(TRUE);
+          UNTIL Rec.NEXT = 0;
+        {Direct assigned Workorders}
+        Rec.SETFILTER("CM Assigned User ID", AssignedUserIDFilter);
+        IF Rec.FIND('-') THEN
+          REPEAT
+            Rec.MARK(TRUE);
+          UNTIL Rec.NEXT = 0;
+        Rec.SETRANGE("CM Assigned User ID");
+      END;
+
+      Rec.FILTERGROUP(0);
+
+      IF (AssignedUserIDFilter <> '') OR (RespUserIDFilter <> '') THEN
+        Rec.MARKEDONLY(TRUE);
+
+      EXIT;
+    END;
+
+    PROCEDURE ShowWorkorders@1000000018(ObjectNo@1000000007 : Code[20];RespUserIDFilter@1000000000 : Text;AssignedUserIDFilter@1000000005 : Text;DateFilter@1000000001 : Text;StatusFilter@1000000006 : Text;DateFilter2@1000000011 : Text;SourceFilter@1000000012 : Text);
+    VAR
+      ListPage@1000000003 : Page 70101;
+      Rec@1000000004 : Record 5092;
+    BEGIN
+      GetWorkorders(Rec, ObjectNo, RespUserIDFilter, AssignedUserIDFilter, DateFilter, StatusFilter, DateFilter2, SourceFilter);
+
+      ListPage.SETTABLEVIEW(Rec);
+      ListPage.RUN();
+    END;
+
+    PROCEDURE CountWorkorders@1000000015(ObjectNo@1000000007 : Code[20];RespUserIDFilter@1000000000 : Text;AssignedUserIDFilter@1000000005 : Text;DateFilter@1000000001 : Text;StatusFilter@1000000006 : Text;DateFilter2@1000000010 : Text;SourceFilter@1000000011 : Text) : Integer;
+    VAR
+      Rec@1000000004 : Record 5092;
+    BEGIN
+      GetWorkorders(Rec, ObjectNo, RespUserIDFilter, AssignedUserIDFilter, DateFilter, StatusFilter, DateFilter2, SourceFilter);
+
+      EXIT(Rec.COUNT)
+    END;
+
+    LOCAL PROCEDURE OptimizeKey@1000000005(VAR Rec@1000000002 : Record 5092;ObjectNo@1000000007 : Code[20];RespUserIDFilter@1000000000 : Text;AssignedUserIDFilter@1000000005 : Text;DateFilter@1000000001 : Text;StatusFilter@1000000006 : Text;DateFilter2@1000000010 : Text;SourceFilter@1000000011 : Text) : Integer;
+    BEGIN
+      //Selects a performant key for GetWorkorders()
+      IF DisableKeyOptimization THEN
+        EXIT;
+
+      IF ObjectNo <> '' THEN BEGIN
+        Rec.SETCURRENTKEY("CM Is Workorder","CM Object No.");
+        EXIT;
+      END;
+
+      IF StatusFilter <> '' THEN BEGIN
+        Rec.SETCURRENTKEY("CM Is Workorder","CM Status","CM Source");
+        EXIT;
+      END;
+
+      IF (SourceFilter <> '') AND (StatusFilter = '') THEN BEGIN
+        Rec.SETCURRENTKEY("CM Is Workorder","CM Source");
+        EXIT;
+      END;
+    END;
+
+    PROCEDURE ShowWorkorderCard@1000000016(VAR Rec@1000000005 : Record 5092);
+    VAR
+      Rec2@1000000004 : Record 5092;
+      CardPage@1000000003 : Page 70100;
+    BEGIN
+      Rec2.FILTERGROUP(2);
+      Rec2.SETRANGE("No.",Rec."No.");
+      Rec2.FILTERGROUP(0);
+
+      CMGenMgt.CreateLogEntry(Rec, LogEntry."CM Log Type"::Read, Rec."No.", '');
+      CMWoMgt.ChangeStatusOpenToNew(Rec);
+      CardPage.SETTABLEVIEW(Rec2);
+      CardPage.RUN();
+    END;
+
+    PROCEDURE ShowWorkorderArchive@1000000007();
+    VAR
+      Rec@1000000001 : Record 5092;
+      ListPage@1000000000 : Page 70101;
+    BEGIN
+      Rec.RESET;
+      Rec.FILTERGROUP(2);
+      Rec.SETCURRENTKEY("CM Is Workorder","CM Status","CM Source");
+      Rec.SETRANGE("CM Is Workorder", TRUE);
+      Rec.SETFILTER("CM Status", '4|5');
+      Rec.FILTERGROUP(2);
+
+      ListPage.SETTABLEVIEW(Rec);
+      ListPage.RUN();
+    END;
+
+    PROCEDURE "###MISC###"@1000000027();
+    BEGIN
+    END;
+
+    LOCAL PROCEDURE ChangeLogEntryAfterStatusChange@1000000042(LogEntryNo@1000000000 : Integer;RelatedLogEntryNo@1000000001 : Integer;TicketClosingReason@1000000002 : Integer);
+    VAR
+      LocLogEntry@1000000003 : Record 5065;
+    BEGIN
+      IF NOT LocLogEntry.GET(LogEntryNo) THEN
+        EXIT;
+
+      LocLogEntry."CM Status Change Standard Text" := TicketClosingReason;
+      LocLogEntry."CM Related Entry No." := RelatedLogEntryNo;
+      LocLogEntry.MODIFY(FALSE);
+    END;
+
+    LOCAL PROCEDURE CloseTasksAutomatically@1000000024(Rec@1000000000 : Record 5092);
+    VAR
+      Task@1000000001 : Record 5080;
+    BEGIN
+      IF Rec."No." = '' THEN
+        EXIT;
+
+      CLEAR(Task);
+      Task.RESET;
+      Task.SETCURRENTKEY("Opportunity No.","CM Type","CM Assigned User ID","CM Status");
+      Task.SETRANGE("Opportunity No.", Rec."No.");
+      Task.SETRANGE("CM Type", Task."CM Type"::Task);
+      Task.SETRANGE("CM Subtype", Task."CM Subtype"::" ");
+      IF Task.FIND('-') THEN BEGIN
+        REPEAT
+          IF Task."CM Status" = Task."CM Status"::Open THEN BEGIN
+            Task."CM Status" := Task."CM Status"::Closed;
+            Task."CM Automatically Closed" := TRUE;
+            CMGenMgt.CreateLogEntry(Task,LogEntry."CM Log Type"::"Status Change",FORMAT(Task."CM Status"), Text009);
+            Task.MODIFY(FALSE);
+            Task."CM Status" := Task."CM Status"::Open; //Dont know why, but the REPEAT Loop needs this to find NEXT
+          END;
+        UNTIL Task.NEXT = 0;
+      END;
+    END;
+
+    PROCEDURE ExportToExcel@1000000029(Rec@1000000000 : Record 5092);
+    VAR
+      Rec2@1000000001 : Record 5092;
+    BEGIN
+      Rec2.SETRANGE("No.", Rec."No.");
+      REPORT.RUNMODAL(70007, TRUE, FALSE, Rec2);
+    END;
+
+    PROCEDURE RunSiteVisitionReport@1000000022(Rec@1000000000 : Record 5092;Mode@1000000003 : 'Run Report,Preview,Save As PDF');
+    VAR
+      Rec2@1000000001 : Record 5092;
+      Rep@1000000002 : Report 70001;
+      FileMgt@1000000004 : Codeunit 419;
+      Timestamp@1000000005 : Text;
+      ServerTempFilename@1000000006 : Text;
+      ClientFilename@1000000007 : Text;
+    BEGIN
+      Rec2.SETRANGE("No.", Rec."No.");
+      Rep.SETTABLEVIEW(Rec2);
+      Timestamp := DateTimeToString(CURRENTDATETIME);
+
+      CASE Mode OF
+        Mode::"Run Report"    : Rep.RUNMODAL();
+        Mode::Preview         : Rep.EXECUTE('');
+        Mode::"Save As PDF"   : BEGIN
+          ServerTempFilename := FileMgt.ServerTempFileName('pdf');
+          ClientFilename := STRSUBSTNO(Text014, Rec."No.", Rec."CM Object Name", Timestamp, 'pdf');
+          Rep.SAVEASPDF(ServerTempFilename);
+          DOWNLOAD(ServerTempFilename,'Save File', '','PDF |*.pdf', ClientFilename);
+          FileMgt.DeleteServerFile(ServerTempFilename);
+        END;
+      END;
+    END;
+
+    PROCEDURE LookupSubcontractor@1000000028(Rec@1000000000 : Record 5092) : Code[20];
+    VAR
+      CMAddData@1000000001 : Record 70021;
+      Contact@1000000002 : Record 5050;
+      CMGenSetup@1000000003 : Record 70000;
+      ListPage1@1000000004 : Page 70055;
+      ListPage2@1000000005 : Page 5052;
+    BEGIN
+      //With Object
+      IF Rec."CM Object No." <> '' THEN BEGIN
+        IF NOT CMGenSetup.GET() THEN
+          CMGenSetup.INIT;
+
+        CMGenSetup.TESTFIELD("Subcontractor Bus. Rel. Code");
+
+        CMAddData.SETRANGE(Objecttype, Rec."CM Objecttype");
+        CMAddData.SETRANGE(Type, CMAddData.Type::Relation);
+        CMAddData.SETRANGE(Key1, Rec."CM Object No.");
+        CMAddData.SETRANGE("Business Relation Code", CMGenSetup."Subcontractor Bus. Rel. Code");
+        IF CMAddData.FINDSET() THEN
+          ;
+
+        ListPage1.LOOKUPMODE(TRUE);
+        ListPage1.SETTABLEVIEW(CMAddData);
+        IF ListPage1.RUNMODAL <> ACTION::LookupOK THEN
+          EXIT('');
+
+        ListPage1.GETRECORD(CMAddData);
+        EXIT(CMAddData.Key2);
+      END;
+
+      //No Object --> Contact List
+      ListPage2.LOOKUPMODE(TRUE);
+      IF ListPage2.RUNMODAL <> ACTION::LookupOK THEN
+          EXIT('');
+
+      ListPage2.GETRECORD(Contact);
+      EXIT(Contact."No.");
+    END;
+
+    LOCAL PROCEDURE FillObjectName@1000000031(VAR Rec@1000000000 : Record 5092);
+    VAR
+      CMObject@1000000001 : Record 70020;
+    BEGIN
+      IF (Rec."CM Object No." <> '') AND (Rec."CM Object Name" = '') THEN BEGIN
+        IF NOT CMObject.GET(Rec."CM Objecttype", Rec."CM Object No.") THEN
+          CMObject.INIT;
+
+        Rec."CM Object Name" := CMObject.Name;
+        Rec."CM Object Name 2" := CMObject."Name 2";
+      END;
+    END;
+
+    PROCEDURE IsStatusOpen@1000000040(Rec@1000000000 : Record 5092) : Boolean;
+    BEGIN
+      EXIT(NOT IsStatusClosed(Rec));
+    END;
+
+    PROCEDURE IsStatusClosed@1000000038(Rec@1000000000 : Record 5092) : Boolean;
+    BEGIN
+      EXIT
+      (Rec."CM Status" IN
+      [
+          Rec."CM Status"::Done,
+          Rec."CM Status"::Discarded
+      ]);
+    END;
+
+    PROCEDURE DateTimeToString@1000000039(value@1000000002 : DateTime) : Text;
+    VAR
+      DotNetDateTime@1000000000 : DotNet "'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089'.System.DateTime" SUPPRESSDISPOSE;
+    BEGIN
+      DotNetDateTime := value;
+      EXIT(DotNetDateTime.ToString('yyyy-MM-dd_HH\hmm'));
+    END;
+
+    PROCEDURE CheckCommentLength@1000000043(CommentText@1000000000 : Text[250]);
+    VAR
+      CMGenSetup@1000000001 : Record 70000;
+    BEGIN
+      IF (CommentText = '') OR (NOT CMGenSetup.GET()) OR (CMGenSetup."Min. Comment Len. (Wo. Status)" <= 0) THEN
+        EXIT;
+
+      IF STRLEN(CommentText) < CMGenSetup."Min. Comment Len. (Wo. Status)" THEN
+        ERROR(Text015, CMGenSetup."Min. Comment Len. (Wo. Status)");
+    END;
+
+    PROCEDURE "### SPECIAL ###"@1000000034();
+    BEGIN
+    END;
+
+    PROCEDURE SetKeyOpimization@1000000048(value@1000000000 : Boolean);
+    BEGIN
+      DisableKeyOptimization := NOT value;
+    END;
+
+    BEGIN
+    END.
+  }
+}
+
+OBJECT Codeunit 70033 CMMS Test Codeunit
+{
+  OBJECT-PROPERTIES
+  {
+    Date=21.05.18;
+    Time=19:59:48;
+    Modified=Yes;
+    Version List=;
+  }
+  PROPERTIES
+  {
+    OnRun=BEGIN
+          END;
+
+  }
+  CODE
+  {
+    VAR
+      CMMSWoMgt@1000000001 : Codeunit 70030;
+
+    LOCAL PROCEDURE DoSmth@1000000000();
+    VAR
+      Wo@1000000000 : Record 5092;
+    BEGIN
+      CMMSWoMgt.NewWorkorder(Wo);
+	  CMMSWoMgt.NewWorkorder(Wo);
+    END;
+
+    BEGIN
+    END.
+  }
+}
+
