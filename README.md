@@ -13,4 +13,4 @@ These are NOT Table relations (1..n, n..1), but relations between NAV objects on
 - Files with huge or many objects will take some time.
 - edit "ErdSettings.js" to change look/feel and behavior.
 - Further Documentation is on the way
-- ES6 compatible browser needed. Works best with these (best-to-worst):  
+- Works best with up to date versions of these: firefox, chrome, opera 
