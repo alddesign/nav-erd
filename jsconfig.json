@@ -1,0 +1,12 @@
+{
+    "compilerOptions": {
+        "target": "ES6"
+    },
+    "include": [
+        "ErdSettings.js",
+		"resources/*.js"
+    ],
+	"exclude" : [
+		"resources/*.example.js"
+	]
+}

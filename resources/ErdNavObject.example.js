@@ -1,11 +1,12 @@
+"use strict";
 /**
- * This is an example of an navObject OBJECT.
+ * Dont run/use this file! This is an example of "var navObject" in json format.
  * 
- * load-data.js creates an array (var navObjects) with these objects.
+ * It is easier to actually create a litteral object here rather than real classes.
+ * ErdLoadData.class.js deals with these objects.
  */
-if(1==1){return;} //prevent execution.
 
-var navObject = 
+var navObject =
 {
 	table50000 :
 	{
@@ -22,19 +23,18 @@ var navObject =
 			{
 				name : "createnewsetup",
 				realname : "CreateNewSetup",
-				functionUid : "table50000.createnewsetup",
 				id : 1000005,
 				included : true,
 				type : 0, //0 = local, 1 = global, 2 = trigger
 				render: true,
 				params : 
 				{
-					rec : {name : "rec", realName : "Rec", id=1000000, objectType : "table", objectId : 50001, objectUid = "table50001", temp : false},
+					rec : {name : "rec", realName : "Rec", id : 1000000, objectType : "table", objectId : 50001, objectUid : "table50001", temp : false},
 					//...
 				},
 				vars: 
 				{
-					igtaskmgt : {name : "igtaskmgt", realName : "IGTaskMgt", id : 1000002, objectType : "codeunit", objectId : 50030, objectUid = "codeunit50030", temp : false},
+					igtaskmgt : {name : "igtaskmgt", realName : "IGTaskMgt", id : 1000002, objectType : "codeunit", objectId : 50030, objectUid : "codeunit50030", temp : false},
 					//...
 				},
 				calls : 
@@ -53,7 +53,7 @@ var navObject =
 		},
 		vars :
 		{
-			itemrec : {name : "itemrec", realName : "ItemRec", id=1000000, objectType : "table", objectId : 27, objectUid = "table27", temp : false},
+			itemrec : {name : "itemrec", realName : "ItemRec", id : 1000000, objectType : "table", objectId : 27, objectUid : "table27", temp : false},
 			//...
 		},
 		totalCalls : 0,
@@ -71,4 +71,4 @@ var navObject =
         totalFunctionsToRender : 2
 	},
 	//...
-}
+};
