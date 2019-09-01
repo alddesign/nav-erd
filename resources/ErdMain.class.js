@@ -61,6 +61,7 @@ class ErdMain
     {
         try
         {
+            var startTimeParsing = new Date();
             var fileInput = document.getElementById(ERDSETTINGS.htmlIdFileInput);
             if(fileInput === undefined || fileInput.files.length !== 1)
             {
@@ -71,9 +72,12 @@ class ErdMain
             this.init();
             var lines = await ErdUtil.readLines(fileInput.files[0]);
             
+            
             ErdUtil.loadingModal("Parsing data...", "wanderingCubes"); await ErdUtil.sleep(200);
             this.erdDataLoader.load(lines);
+            var endTimeParsing = new Date();
 
+            var startTimeDrawing = new Date();
             ErdUtil.loadingModal("Drawing ERD...", "foldingCube"); await ErdUtil.sleep(200);
             this.erdDrawer.drawErd(this.erdDataLoader);
 
@@ -82,6 +86,7 @@ class ErdMain
             $("#ig-download-svg").addClass("btn-success")
 
             ErdUtil.loadingModal();
+            var endTimeDrawing = new Date();
         }
         catch(ex)
         {
@@ -89,6 +94,17 @@ class ErdMain
             ErdUtil.loadingModal();await ErdUtil.sleep(200);
             ErdUtil.errorModal(ex.message, ex.name, true);
         } 
+
+        if(ERDSETTINGS.testPerformance)
+        {
+            var durationParsing = (endTimeParsing - startTimeParsing) / 1000;
+            var durationDrawing = (endTimeDrawing - startTimeDrawing) / 1000;
+            var duration = durationDrawing + durationParsing;
+            
+            var resText = "PERFORMANCE TEST:\rParsing: " + durationParsing.toFixed(3) + " sec.\rDrawing: " + durationDrawing.toFixed(3) + " sec.\rTotal: " + duration.toFixed(3) + " sec.";
+            alert(resText);
+            console.log(resText); 
+        }
     }
 }
 

@@ -9,7 +9,7 @@ const ERDSETTINGS =
 {
 // ### SETTING ##################################################
 // In this section you may adjust what exactly will be rendered to the ERD and how.
-	showObjects 			: "all", //Options: "all", "included", "included_with_calls"
+	showObjects 			: "included", //Options: "all", "included", "included_with_calls"
 	showLocalFunctions 		: "all", //Options: "all", "with_calls", "none"
 	showGlobalFunctions 	: "all", //Options: "all", "with_calls", "none"
 	showTriggerFunctions 	: "all", //Options: "all", "with_calls", "none"
@@ -75,6 +75,8 @@ const ERDSETTINGS =
 	navFunctionEntityMaring 	: 15,
 	navFunctionEntityXMargin 	: 60,
 	navFunctionEntityYOffset 	: 50,
+
+	testPerformance 			: true,
 
 	htmlIdErdDiv		: "ig-erd",
 	htmlIdFileInput		: "ig-file",
